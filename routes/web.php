@@ -48,4 +48,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
     Route::get('/profile', [UserController::class, 'profile'])->name('profile');
     Route::put('/profile', [UserController::class, 'updateProfile'])->name('profile.update');
+    Route::put('/users/{user}/update-status', [UserController::class, 'updateUserStatus'])->name('users.update-status');
 });

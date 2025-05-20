@@ -59,3 +59,52 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+# LaraChat
+
+Uma aplicação de chat usando Laravel.
+
+## Configuração do Supabase para Armazenamento de Avatares
+
+Este projeto utiliza o [Supabase](https://supabase.io/) para o armazenamento de avatares dos usuários. Siga os passos abaixo para configurar:
+
+### 1. Crie uma conta no Supabase
+
+- Acesse [supabase.com](https://supabase.com) e crie uma conta
+- Crie um novo projeto
+
+### 2. Configure o Storage no Supabase
+
+- No painel do Supabase, vá para "Storage" > "Buckets"
+- Crie um novo bucket chamado "avatars" (ou o nome de sua preferência)
+- Configure as permissões do bucket para permitir upload e download públicos
+
+### 3. Configure suas credenciais
+
+Você pode configurar manualmente as variáveis no arquivo .env:
+
+```
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your-anon-key
+SUPABASE_BUCKET=avatars
+```
+
+Ou usar o comando artisan:
+
+```
+php artisan setup:supabase
+```
+
+Este comando solicitará interativamente suas credenciais e configurará o arquivo .env automaticamente.
+
+### 4. Limpe o cache de configuração
+
+```
+php artisan config:clear
+```
+
+## Observações Sobre o Armazenamento de Avatares
+
+- Os avatares são armazenados no Supabase e não localmente, permitindo acesso de qualquer dispositivo
+- O serviço gerencia automaticamente a exclusão de avatares antigos quando um novo é enviado
+- URLs dos avatares são armazenadas diretamente no banco de dados, não apenas os nomes dos arquivos

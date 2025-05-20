@@ -16,6 +16,9 @@
     <!-- Fonts -->
     <link rel="dns-prefetch" href="//fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=Nunito" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 
     <!-- Scripts -->
     @vite(['resources/sass/app.scss', 'resources/js/app.js'])
@@ -41,6 +44,11 @@
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ route('messages.index') }}">Mensagens</a>
                             </li>
+                            @if(Auth::user()->isAdmin())
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('users.index') }}">Utilizadores</a>
+                                </li>
+                            @endif
                         @endauth
                     </ul>
 
@@ -61,21 +69,40 @@
                             @endif
                         @else
                             <li class="nav-item dropdown">
-                                <a id="navbarDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
-                                    {{ Auth::user()->name }}
+                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                    <div class="user-avatar">
+                                        @if(Auth::user()->avatar)
+                                            <img src="{{ Auth::user()->avatar }}?v={{ time() }}" alt="{{ Auth::user()->name }}" class="w-100 h-100">
+                                        @else
+                                            <div class="avatar-initials">
+                                                {{ substr(Auth::user()->name, 0, 1) }}
+                                            </div>
+                                        @endif
+                                    </div>
+                                    <span>{{ Auth::user()->name }}</span>
                                 </a>
-
-                                <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                                    <a class="dropdown-item" href="{{ route('logout') }}"
-                                       onclick="event.preventDefault();
-                                                     document.getElementById('logout-form').submit();">
-                                        {{ __('Logout') }}
-                                    </a>
-
-                                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                                        @csrf
-                                    </form>
-                                </div>
+                                
+                                <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="userDropdown">
+                                    <li><h6 class="dropdown-header">Conta</h6></li>
+                                    <li><a class="dropdown-item" href="{{ route('profile') }}"><i class="bi bi-person-circle me-2"></i> Meu Perfil</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('messages.index') }}"><i class="bi bi-envelope me-2"></i> Minhas Mensagens</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('rooms.index') }}"><i class="bi bi-chat-dots me-2"></i> Minhas Salas</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><h6 class="dropdown-header">Preferências</h6></li>
+                                    <li><a class="dropdown-item" href="{{ route('profile') }}#password"><i class="bi bi-key me-2"></i> Alterar Senha</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item" href="{{ route('logout') }}" 
+                                           onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                                            <i class="bi bi-box-arrow-right me-2"></i> Sair
+                                        </a>
+                                    </li>
+                                </ul>
+                                
+                                <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                                    @csrf
+                                </form>
                             </li>
                         @endguest
                     </ul>
@@ -100,11 +127,50 @@
         </main>
     </div>
     
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
+    
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             console.log('LaraChat initialized');
-            console.log('VITE_PUSHER_APP_KEY:', '{{ env("VITE_PUSHER_APP_KEY") }}');
-            console.log('VITE_PUSHER_APP_CLUSTER:', '{{ env("VITE_PUSHER_APP_CLUSTER") }}');
+            
+            // Debug de elementos dropdown
+            const dropdownToggles = document.querySelectorAll('.dropdown-toggle');
+            console.log('Dropdown toggles encontrados:', dropdownToggles.length);
+            
+            // Inicializar dropdowns manualmente
+            dropdownToggles.forEach(function(element) {
+                // Adicionar listeners de evento diretamente
+                element.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const dropdownMenu = this.nextElementSibling;
+                    if (dropdownMenu.classList.contains('show')) {
+                        dropdownMenu.classList.remove('show');
+                    } else {
+                        // Fechar outros dropdowns abertos
+                        document.querySelectorAll('.dropdown-menu.show').forEach(function(menu) {
+                            menu.classList.remove('show');
+                        });
+                        dropdownMenu.classList.add('show');
+                    }
+                });
+                
+                // Tentar inicializar com Bootstrap também
+                try {
+                    new bootstrap.Dropdown(element);
+                } catch (error) {
+                    console.warn('Não foi possível inicializar dropdown com Bootstrap:', error);
+                }
+            });
+            
+            // Fechar dropdowns ao clicar fora
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.dropdown')) {
+                    document.querySelectorAll('.dropdown-menu.show').forEach(function(element) {
+                        element.classList.remove('show');
+                    });
+                }
+            });
         });
     </script>
 </body>

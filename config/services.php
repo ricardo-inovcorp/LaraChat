@@ -14,6 +14,12 @@ return [
     |
     */
 
+    'mailgun' => [
+        'domain' => env('MAILGUN_DOMAIN'),
+        'secret' => env('MAILGUN_SECRET'),
+        'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
+    ],
+
     'postmark' => [
         'token' => env('POSTMARK_TOKEN'),
     ],
@@ -33,6 +39,12 @@ return [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
+    ],
+
+    'supabase' => [
+        'url' => env('SUPABASE_URL', ''),
+        'key' => env('SUPABASE_KEY', ''),
+        'bucket' => env('SUPABASE_BUCKET', 'avatars'),
     ],
 
 ];

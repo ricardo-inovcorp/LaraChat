@@ -23,6 +23,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'avatar',
+        'permissions',
+        'status',
     ];
 
     /**
@@ -46,6 +49,22 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+    
+    /**
+     * Verificar se o usuário é um administrador.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->permissions === 'admin';
+    }
+    
+    /**
+     * Verificar se o usuário está ativo.
+     */
+    public function isActive(): bool
+    {
+        return $this->status === 'active';
     }
     
     /**
