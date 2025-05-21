@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Room;
 use App\Models\User;
 use App\Models\UserRoom;
+use App\Models\RoomJoinRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -23,14 +24,20 @@ class RoomController extends Controller
      */
     public function index()
     {
-        // Get all public rooms
-        $publicRooms = Room::where('is_private', false)->get();
+        // Get all public rooms with their creators
+        $publicRooms = Room::where('is_private', false)->with('creator')->get();
         
-        // Get user's private rooms
+        // Get user's private rooms with their creators
         $user = Auth::user();
-        $userRooms = $user->rooms()->where('is_private', true)->get();
+        $userRooms = $user->rooms()->where('is_private', true)->with('creator')->get();
         
-        return view('rooms.index', compact('publicRooms', 'userRooms'));
+        // Get rooms the user is a member of
+        $userRoomIds = $user->rooms()->pluck('rooms.id')->toArray();
+        
+        // Get user's pending join requests
+        $pendingRequests = $user->joinRequests()->where('status', 'pending')->pluck('room_id')->toArray();
+        
+        return view('rooms.index', compact('publicRooms', 'userRooms', 'userRoomIds', 'pendingRequests'));
     }
 
     /**
@@ -55,11 +62,21 @@ class RoomController extends Controller
             'members.*' => 'exists:users,id'
         ]);
         
+        $user = Auth::user();
+        $isPrivate = $request->is_private ?? false;
+        
+        // Only administrators can create public rooms
+        if (!$user->isAdmin() && !$isPrivate) {
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Apenas administradores podem criar salas públicas. Por favor, crie uma sala privada.');
+        }
+        
         $room = Room::create([
             'name' => $request->name,
             'description' => $request->description,
             'created_by' => Auth::id(),
-            'is_private' => $request->is_private ?? false
+            'is_private' => $isPrivate
         ]);
         
         // Add the creator as an admin member
@@ -77,6 +94,10 @@ class RoomController extends Controller
                     'room_id' => $room->id,
                     'is_admin' => false
                 ]);
+                
+                // Send notification to the invited user
+                $invitedUser = User::find($memberId);
+                $invitedUser->notify(new \App\Notifications\RoomInvitation($room, $user));
             }
         }
         
@@ -86,7 +107,7 @@ class RoomController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Room $room)
+    public function show(Room $room, Request $request)
     {
         // Check if user is member of the room
         $user = Auth::user();
@@ -94,6 +115,21 @@ class RoomController extends Controller
         
         if (!$isMember && $room->is_private) {
             return redirect()->route('rooms.index')->with('error', 'You do not have access to this room.');
+        }
+        
+        // Mark notification as read if notification_id is provided
+        if ($request->has('notification_id')) {
+            $notification = $user->notifications()->find($request->notification_id);
+            if ($notification) {
+                $notification->markAsRead();
+            }
+        }
+        
+        // Mark all room invitation notifications for this room as read
+        foreach ($user->unreadNotifications as $notification) {
+            if (isset($notification->data['room_id']) && $notification->data['room_id'] == $room->id) {
+                $notification->markAsRead();
+            }
         }
         
         $messages = $room->messages()->with('user')->orderBy('created_at', 'asc')->get();
@@ -151,6 +187,9 @@ class RoomController extends Controller
         
         // Update members
         if ($request->has('members')) {
+            // Get current members before removing them
+            $currentMembers = $room->members()->where('users.id', '!=', Auth::id())->pluck('users.id')->toArray();
+            
             // Remove all non-admin members
             UserRoom::where('room_id', $room->id)
                     ->where('user_id', '!=', Auth::id())
@@ -162,6 +201,12 @@ class RoomController extends Controller
                     ['user_id' => $memberId, 'room_id' => $room->id],
                     ['is_admin' => false]
                 );
+                
+                // Send notification to newly added members
+                if (!in_array($memberId, $currentMembers)) {
+                    $invitedUser = User::find($memberId);
+                    $invitedUser->notify(new \App\Notifications\RoomInvitation($room, $user));
+                }
             }
         }
         
@@ -173,14 +218,26 @@ class RoomController extends Controller
      */
     public function destroy(Room $room)
     {
-        // Check if user is the creator of the room
-        if ($room->created_by !== Auth::id()) {
-            return redirect()->route('rooms.index')->with('error', 'You do not have permission to delete this room.');
+        $user = Auth::user();
+        
+        // Allow admin users to delete any room
+        if ($user->isAdmin() || $room->created_by === $user->id) {
+            // Delete related records to avoid foreign key constraint violations
+            // Delete all messages in the room
+            $room->messages()->delete();
+            
+            // Delete all user-room relationships
+            $room->members()->detach();
+            
+            // Delete all join requests for the room
+            $room->joinRequests()->delete();
+            
+            // Now delete the room
+            $room->delete();
+            return redirect()->route('rooms.index')->with('success', 'Sala excluída com sucesso!');
         }
         
-        $room->delete();
-        
-        return redirect()->route('rooms.index')->with('success', 'Room deleted successfully!');
+        return redirect()->route('rooms.index')->with('error', 'Você não tem permissão para excluir esta sala.');
     }
     
     /**
@@ -208,7 +265,119 @@ class RoomController extends Controller
             'is_admin' => false
         ]);
         
+        // If there was a pending request, mark it as approved
+        RoomJoinRequest::where('user_id', Auth::id())
+            ->where('room_id', $room->id)
+            ->where('status', 'pending')
+            ->update(['status' => 'approved']);
+        
         return redirect()->route('rooms.show', $room)->with('success', 'You have joined the room!');
+    }
+    
+    /**
+     * Request to join a room.
+     */
+    public function requestJoin(Room $room)
+    {
+        // Check if room is private
+        if ($room->is_private) {
+            return redirect()->route('rooms.index')->with('error', 'You cannot join a private room without an invitation.');
+        }
+        
+        // Check if already a member
+        $user = Auth::user();
+        $isMember = $user->rooms()->where('room_id', $room->id)->exists();
+        
+        if ($isMember) {
+            return redirect()->route('rooms.show', $room);
+        }
+        
+        // Check if request already exists
+        $existingRequest = RoomJoinRequest::where('user_id', Auth::id())
+            ->where('room_id', $room->id)
+            ->where('status', 'pending')
+            ->exists();
+            
+        if ($existingRequest) {
+            return redirect()->route('rooms.index')->with('info', 'Your request to join this room is already pending approval.');
+        }
+        
+        // Create join request
+        RoomJoinRequest::create([
+            'user_id' => Auth::id(),
+            'room_id' => $room->id,
+            'status' => 'pending'
+        ]);
+        
+        return redirect()->route('rooms.index')->with('success', 'Your request to join the room has been sent to the owner.');
+    }
+    
+    /**
+     * Approve a join request.
+     */
+    public function approveJoinRequest(RoomJoinRequest $request)
+    {
+        // Check if user is admin of the room
+        $room = $request->room;
+        $user = Auth::user();
+        $isAdmin = $user->rooms()->where('room_id', $room->id)->wherePivot('is_admin', true)->exists();
+        
+        if (!$isAdmin) {
+            return redirect()->route('rooms.index')->with('error', 'You do not have permission to approve this request.');
+        }
+        
+        // Update request status
+        $request->update(['status' => 'approved']);
+        
+        // Add user to room
+        UserRoom::create([
+            'user_id' => $request->user_id,
+            'room_id' => $room->id,
+            'is_admin' => false
+        ]);
+        
+        return redirect()->route('rooms.show', $room)->with('success', 'Join request approved.');
+    }
+    
+    /**
+     * Reject a join request.
+     */
+    public function rejectJoinRequest(RoomJoinRequest $request)
+    {
+        // Check if user is admin of the room
+        $room = $request->room;
+        $user = Auth::user();
+        $isAdmin = $user->rooms()->where('room_id', $room->id)->wherePivot('is_admin', true)->exists();
+        
+        if (!$isAdmin) {
+            return redirect()->route('rooms.index')->with('error', 'You do not have permission to reject this request.');
+        }
+        
+        // Update request status
+        $request->update(['status' => 'rejected']);
+        
+        return redirect()->route('rooms.show', $room)->with('success', 'Join request rejected.');
+    }
+    
+    /**
+     * Show pending join requests for a room.
+     */
+    public function showJoinRequests(Room $room)
+    {
+        // Check if user is admin of the room
+        $user = Auth::user();
+        $isAdmin = $user->rooms()->where('room_id', $room->id)->wherePivot('is_admin', true)->exists();
+        
+        if (!$isAdmin) {
+            return redirect()->route('rooms.show', $room)->with('error', 'You do not have permission to view join requests.');
+        }
+        
+        $pendingRequests = $room->joinRequests()
+            ->where('status', 'pending')
+            ->with('user')
+            ->get();
+        
+        return view('rooms.join_requests', compact('room', 'pendingRequests'));
     }
     
     /**

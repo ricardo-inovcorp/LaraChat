@@ -58,4 +58,12 @@ class Room extends Model
     {
         return $this->hasMany(Message::class);
     }
+    
+    /**
+     * Get all join requests for the room.
+     */
+    public function joinRequests(): HasMany
+    {
+        return $this->hasMany(RoomJoinRequest::class);
+    }
 }

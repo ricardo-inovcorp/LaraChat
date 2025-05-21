@@ -1,0 +1,52 @@
+// Custom styles for LaraChat
+
+// Notification dropdown styles
+.notification-dropdown {
+    width: 300px;
+    max-height: 400px;
+    overflow-y: auto;
+    
+    .notification-item {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 0.75rem 1rem;
+        
+        &:hover {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        
+        p {
+            margin-bottom: 0.25rem;
+            line-height: 1.3;
+        }
+        
+        small {
+            font-size: 0.75rem;
+            color: $gray-600;
+        }
+    }
+}
+
+// User avatar styles
+.user-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+    overflow: hidden;
+    background-color: $primary;
+    color: white;
+    text-align: center;
+    line-height: 30px;
+    font-weight: bold;
+    
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    
+    .avatar-initials {
+        line-height: 30px;
+        font-size: 0.85rem;
+    }
+} 

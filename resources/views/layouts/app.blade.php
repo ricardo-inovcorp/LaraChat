@@ -68,6 +68,64 @@
                                 </li>
                             @endif
                         @else
+                            <!-- Notifications Dropdown -->
+                            <li class="nav-item dropdown me-3">
+                                @php
+                                    $unreadNotifications = Auth::user()->unreadNotifications;
+                                    $notificationCount = $unreadNotifications->count();
+                                @endphp
+                                <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationsDropdown" role="button"
+                                    data-bs-toggle="dropdown" aria-expanded="false">
+                                    <i class="bi bi-bell fs-5"></i>
+                                    @if($notificationCount > 0)
+                                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                            {{ $notificationCount }}
+                                        </span>
+                                    @endif
+                                </a>
+                                
+                                <ul class="dropdown-menu dropdown-menu-end shadow notification-dropdown" aria-labelledby="notificationsDropdown" style="width: 300px; max-height: 400px; overflow-y: auto;">
+                                    <li><h6 class="dropdown-header">Notificações</h6></li>
+                                    
+                                    @if($notificationCount > 0)
+                                        @foreach($unreadNotifications as $notification)
+                                            <li>
+                                                <a class="dropdown-item notification-item" href="{{ route('rooms.show', $notification->data['room_id']) }}" 
+                                                   onclick="event.preventDefault(); 
+                                                           document.getElementById('mark-notification-{{ $notification->id }}').submit();">
+                                                    <div class="d-flex">
+                                                        <div class="flex-shrink-0">
+                                                            <i class="bi bi-envelope-paper text-primary"></i>
+                                                        </div>
+                                                        <div class="ms-2">
+                                                            <p class="mb-0">{{ $notification->data['message'] }}</p>
+                                                            <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                                <form id="mark-notification-{{ $notification->id }}" 
+                                                      action="{{ route('rooms.show', $notification->data['room_id']) }}" 
+                                                      method="GET" class="d-none">
+                                                    @csrf
+                                                    <input type="hidden" name="notification_id" value="{{ $notification->id }}">
+                                                </form>
+                                            </li>
+                                        @endforeach
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form action="{{ route('notifications.mark-all-read') }}" method="POST">
+                                                @csrf
+                                                <button type="submit" class="dropdown-item text-center">
+                                                    <small>Marcar todas como lidas</small>
+                                                </button>
+                                            </form>
+                                        </li>
+                                    @else
+                                        <li><p class="dropdown-item text-muted mb-0">Não há notificações novas</p></li>
+                                    @endif
+                                </ul>
+                            </li>
+
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button"
                                     data-bs-toggle="dropdown" aria-expanded="false">
@@ -87,7 +145,7 @@
                                     <li><h6 class="dropdown-header">Conta</h6></li>
                                     <li><a class="dropdown-item" href="{{ route('profile') }}"><i class="bi bi-person-circle me-2"></i> Meu Perfil</a></li>
                                     <li><a class="dropdown-item" href="{{ route('messages.index') }}"><i class="bi bi-envelope me-2"></i> Minhas Mensagens</a></li>
-                                    <li><a class="dropdown-item" href="{{ route('rooms.index') }}"><i class="bi bi-chat-dots me-2"></i> Minhas Salas</a></li>
+                                    <li><a class="dropdown-item" href="{{ route('rooms.index') }}"><i class="bi bi-chat-dots me-2"></i> Salas Privadas</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><h6 class="dropdown-header">Preferências</h6></li>
                                     <li><a class="dropdown-item" href="{{ route('profile') }}#password"><i class="bi bi-key me-2"></i> Alterar Senha</a></li>

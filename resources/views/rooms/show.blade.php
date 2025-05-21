@@ -14,6 +14,20 @@
     <div class="col-md-4 text-md-end">
         @if($isAdmin)
             <a href="{{ route('rooms.edit', $room) }}" class="btn btn-warning">Editar Sala</a>
+            
+            @if($room->created_by == Auth::id())
+                @php
+                    $pendingCount = $room->joinRequests()->where('status', 'pending')->count();
+                @endphp
+                <a href="{{ route('rooms.join-requests', $room) }}" class="btn btn-info position-relative">
+                    Solicitações de Acesso
+                    @if($pendingCount > 0)
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            {{ $pendingCount }}
+                        </span>
+                    @endif
+                </a>
+            @endif
         @endif
         
         @if($room->created_by == Auth::id())
@@ -75,7 +89,9 @@
                     @foreach($members as $member)
                         <li class="list-group-item d-flex justify-content-between align-items-center">
                             {{ $member->name }}
-                            @if($member->pivot->is_admin)
+                            @if($member->id == $room->created_by)
+                                <span class="badge bg-primary">Owner</span>
+                            @elseif($member->pivot->is_admin)
                                 <span class="badge bg-primary">Admin</span>
                             @endif
                         </li>

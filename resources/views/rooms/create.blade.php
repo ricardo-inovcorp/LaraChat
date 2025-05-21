@@ -1,10 +1,27 @@
 @extends('layouts.app')
 
+@php
+use Illuminate\Support\Facades\Auth;
+@endphp
+
 @section('content')
 <div class="row">
     <div class="col-md-8 offset-md-2">
         <div class="card">
-            <div class="card-header">Criar Nova Sala</div>
+            <div class="card-header">
+                @if(Auth::user()->isAdmin())
+                    Criar Nova Sala
+                @else
+                    Criar Nova Sala Privada
+                @endif
+            </div>
+            
+            @if(!Auth::user()->isAdmin())
+            <div class="alert alert-info m-3">
+                Apenas administradores podem criar salas públicas. Como usuário comum, você só pode criar salas privadas.
+            </div>
+            @endif
+            
             <div class="card-body">
                 <form action="{{ route('rooms.store') }}" method="POST">
                     @csrf
@@ -29,10 +46,14 @@
                         @enderror
                     </div>
                     
+                    @if(Auth::user()->isAdmin())
                     <div class="mb-3 form-check">
                         <input type="checkbox" class="form-check-input" id="is_private" name="is_private" value="1" {{ old('is_private') ? 'checked' : '' }}>
                         <label class="form-check-label" for="is_private">Sala Privada</label>
                     </div>
+                    @else
+                        <input type="hidden" name="is_private" value="1">
+                    @endif
                     
                     <div class="mb-3">
                         <label for="members" class="form-label">Convidar Membros</label>

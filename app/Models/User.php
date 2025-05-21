@@ -100,4 +100,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(Message::class, 'receiver_id');
     }
+    
+    /**
+     * Get all join requests made by the user.
+     */
+    public function joinRequests(): HasMany
+    {
+        return $this->hasMany(RoomJoinRequest::class);
+    }
 }

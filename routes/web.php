@@ -35,6 +35,10 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('rooms', RoomController::class);
     Route::post('/rooms/{room}/join', [RoomController::class, 'join'])->name('rooms.join');
     Route::post('/rooms/{room}/leave', [RoomController::class, 'leave'])->name('rooms.leave');
+    Route::post('/rooms/{room}/request-join', [RoomController::class, 'requestJoin'])->name('rooms.request-join');
+    Route::get('/rooms/{room}/join-requests', [RoomController::class, 'showJoinRequests'])->name('rooms.join-requests');
+    Route::post('/join-requests/{request}/approve', [RoomController::class, 'approveJoinRequest'])->name('join-requests.approve');
+    Route::post('/join-requests/{request}/reject', [RoomController::class, 'rejectJoinRequest'])->name('join-requests.reject');
     
     // Rotas de Mensagens
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');
@@ -49,4 +53,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/profile', [UserController::class, 'profile'])->name('profile');
     Route::put('/profile', [UserController::class, 'updateProfile'])->name('profile.update');
     Route::put('/users/{user}/update-status', [UserController::class, 'updateUserStatus'])->name('users.update-status');
+    
+    // Rotas de Notificações
+    Route::post('/notifications/mark-all-read', [App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
+    Route::post('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
 });

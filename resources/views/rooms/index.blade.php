@@ -1,5 +1,9 @@
 @extends('layouts.app')
 
+@php
+use Illuminate\Support\Facades\Auth;
+@endphp
+
 @section('content')
 <div class="row mb-4">
     <div class="col-md-8">
@@ -22,12 +26,35 @@
                                 <div>
                                     <a href="{{ route('rooms.show', $room) }}">{{ $room->name }}</a>
                                     <small class="text-muted d-block">{{ $room->description }}</small>
+                                    <small class="text-muted">
+                                        Owner: {{ $room->creator->name }}
+                                    </small>
                                 </div>
                                 <div>
-                                    <form action="{{ route('rooms.join', $room) }}" method="POST" class="d-inline">
-                                        @csrf
-                                        <button type="submit" class="btn btn-sm btn-success">Entrar</button>
-                                    </form>
+                                    @if(in_array($room->id, $userRoomIds))
+                                        <a href="{{ route('rooms.show', $room) }}" class="btn btn-sm btn-outline-primary">Acessar</a>
+                                    @elseif(in_array($room->id, $pendingRequests))
+                                        <span class="badge bg-warning">Solicitação Pendente</span>
+                                    @else
+                                        <div class="btn-group">
+                                            <form action="{{ route('rooms.join', $room) }}" method="POST" class="d-inline">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-success">Entrar</button>
+                                            </form>
+                                            <form action="{{ route('rooms.request-join', $room) }}" method="POST" class="d-inline ms-1">
+                                                @csrf
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Solicitar Acesso</button>
+                                            </form>
+                                        </div>
+                                    @endif
+                                    
+                                    @if(Auth::user()->isAdmin() || $room->created_by == Auth::id())
+                                        <form action="{{ route('rooms.destroy', $room) }}" method="POST" class="d-inline mt-1">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza que deseja excluir esta sala?')">Excluir</button>
+                                        </form>
+                                    @endif
                                 </div>
                             </li>
                         @endforeach
@@ -41,7 +68,7 @@
 
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">Minhas Salas</div>
+            <div class="card-header">Salas Privadas</div>
             <div class="card-body">
                 @if ($userRooms->count() > 0)
                     <ul class="list-group">
@@ -50,8 +77,20 @@
                                 <div>
                                     <a href="{{ route('rooms.show', $room) }}">{{ $room->name }}</a>
                                     <small class="text-muted d-block">{{ $room->description }}</small>
-                                    @if ($room->is_private)
+                                    <div>
                                         <span class="badge bg-info">Privada</span>
+                                        <small class="text-muted">Owner: {{ $room->creator->name }}</small>
+                                    </div>
+                                </div>
+                                <div>
+                                    <a href="{{ route('rooms.show', $room) }}" class="btn btn-sm btn-outline-primary">Acessar</a>
+                                    
+                                    @if(Auth::user()->isAdmin() || $room->created_by == Auth::id())
+                                        <form action="{{ route('rooms.destroy', $room) }}" method="POST" class="d-inline mt-1">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Tem certeza que deseja excluir esta sala?')">Excluir</button>
+                                        </form>
                                     @endif
                                 </div>
                             </li>
