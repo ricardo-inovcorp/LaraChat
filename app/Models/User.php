@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class User extends Authenticatable
 {
@@ -111,9 +113,26 @@ class User extends Authenticatable
 
     /**
      * Check if the user is online.
+     * A user is considered online if they have a session active in the last 5 minutes.
      */
     public function isOnline(): bool
     {
-        return $this->status === 'active';
+        // Se o usuário não estiver ativo no sistema, não pode estar online
+        if ($this->status !== 'active') {
+            return false;
+        }
+        
+        // Verificar se o usuário tem uma sessão ativa nos últimos 5 minutos
+        $lastActivity = DB::table('sessions')
+            ->where('user_id', $this->id)
+            ->max('last_activity');
+        
+        if (!$lastActivity) {
+            return false;
+        }
+        
+        // Converter timestamp para Carbon e verificar se está dentro dos últimos 5 minutos
+        $lastActiveTime = Carbon::createFromTimestamp($lastActivity);
+        return $lastActiveTime->isAfter(now()->subMinutes(5));
     }
 }

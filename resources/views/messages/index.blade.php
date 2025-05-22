@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Auth;
                             @endphp
                             <a href="{{ route('messages.conversation', $user) }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
-                                    <div class="user-avatar me-3">
+                                    <div class="user-avatar me-3 position-relative">
                                         @if($user->avatar)
                                             <img src="{{ $user->avatar }}" alt="{{ $user->name }}" class="rounded-circle" style="width: 50px; height: 50px; object-fit: cover;">
                                         @else
@@ -36,9 +36,20 @@ use Illuminate\Support\Facades\Auth;
                                                 {{ substr($user->name, 0, 1) }}
                                             </div>
                                         @endif
+                                        <div class="position-absolute bottom-0 end-0 translate-middle-y">
+                                            <span class="badge rounded-circle p-1 {{ $user->isOnline() ? 'bg-success' : 'bg-secondary' }}" 
+                                                  style="width: 12px; height: 12px;" 
+                                                  title="{{ $user->isOnline() ? 'Online' : 'Offline' }}">
+                                            </span>
+                                        </div>
                                     </div>
                                     <div>
-                                        <h5 class="mb-1">{{ $user->name }}</h5>
+                                        <div class="d-flex align-items-center">
+                                            <h5 class="mb-1 me-2">{{ $user->name }}</h5>
+                                            <small class="text-{{ $user->isOnline() ? 'success' : 'muted' }}">
+                                                {{ $user->isOnline() ? 'Online' : 'Offline' }}
+                                            </small>
+                                        </div>
                                         <p class="mb-1 text-muted text-truncate" style="max-width: 300px;">
                                             @if($latestMessage->user_id == Auth::id())
                                                 <span class="text-muted">Você: </span>
