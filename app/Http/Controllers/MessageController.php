@@ -107,7 +107,7 @@ class MessageController extends Controller
         $user = Auth::user();
         
         try {
-            // Enviar o evento usando o exemplo de código do Pusher
+            // Configurar o Pusher
             $options = [
                 'cluster' => env('PUSHER_APP_CLUSTER'),
                 'useTLS' => true
@@ -127,19 +127,44 @@ class MessageController extends Controller
                     'name' => $user->name,
                 ],
                 'created_at' => $message->created_at,
+                'message_id' => $message->id
             ];
             
-            // Canal e evento como no exemplo do Pusher
-            $channel = 'chat-room.' . $request->room_id;
-            $event = 'my-event';
-            
-            Log::debug('Enviando mensagem via Pusher', [
-                'channel' => $channel,
-                'event' => $event,
-                'data' => $data
-            ]);
-            
-            $pusher->trigger($channel, $event, $data);
+            if ($request->room_id) {
+                // Canal para mensagens de sala
+                $channel = 'chat-room.' . $request->room_id;
+                $event = 'my-event';
+                
+                Log::debug('Enviando mensagem de sala via Pusher', [
+                    'channel' => $channel,
+                    'event' => $event,
+                    'data' => $data
+                ]);
+                
+                // Trigger para mensagens de sala
+                $pusher->trigger($channel, $event, $data);
+            } else {
+                // Canal para mensagens privadas
+                $receiverId = $request->receiver_id;
+                $senderId = $user->id;
+                
+                // Canal para quando este usuário é o remetente
+                $senderChannel = 'chat.' . $senderId . '.' . $receiverId;
+                // Canal para quando este usuário é o destinatário
+                $receiverChannel = 'chat.' . $receiverId . '.' . $senderId;
+                
+                $event = 'new-message';
+                
+                Log::debug('Enviando mensagem privada via Pusher', [
+                    'senderChannel' => $senderChannel,
+                    'receiverChannel' => $receiverChannel,
+                    'event' => $event,
+                    'data' => $data
+                ]);
+                
+                // Disparar evento em ambos os canais
+                $pusher->trigger([$senderChannel, $receiverChannel], $event, $data);
+            }
             
         } catch (\Exception $e) {
             Log::error('Erro ao enviar mensagem via Pusher', [

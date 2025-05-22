@@ -24,7 +24,11 @@ use Illuminate\Support\Facades\Auth;
                         @foreach ($publicRooms as $room)
                             <li class="list-group-item d-flex justify-content-between align-items-center">
                                 <div>
-                                    <a href="{{ route('rooms.show', $room) }}">{{ $room->name }}</a>
+                                    @if(in_array($room->id, $userRoomIds))
+                                        <a href="{{ route('rooms.show', $room) }}">{{ $room->name }}</a>
+                                    @else
+                                        <span class="fw-medium">{{ $room->name }}</span>
+                                    @endif
                                     <small class="text-muted d-block">{{ $room->description }}</small>
                                     <small class="text-muted">
                                         Owner: {{ $room->creator->name }}
@@ -37,13 +41,9 @@ use Illuminate\Support\Facades\Auth;
                                         <span class="badge bg-warning">Solicitação Pendente</span>
                                     @else
                                         <div class="btn-group">
-                                            <form action="{{ route('rooms.join', $room) }}" method="POST" class="d-inline">
+                                            <form action="{{ route('rooms.request-join', $room) }}" method="POST" class="d-inline">
                                                 @csrf
-                                                <button type="submit" class="btn btn-sm btn-success">Entrar</button>
-                                            </form>
-                                            <form action="{{ route('rooms.request-join', $room) }}" method="POST" class="d-inline ms-1">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Solicitar Acesso</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-secondary">Solicitar</button>
                                             </form>
                                         </div>
                                     @endif

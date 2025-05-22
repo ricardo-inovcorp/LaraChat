@@ -108,4 +108,12 @@ class User extends Authenticatable
     {
         return $this->hasMany(RoomJoinRequest::class);
     }
+
+    /**
+     * Check if the user is online.
+     */
+    public function isOnline(): bool
+    {
+        return $this->status === 'active';
+    }
 }

@@ -55,6 +55,12 @@
                                             <td>
                                                 <a href="{{ route('users.show', $user->id) }}" class="btn btn-sm btn-primary">Ver</a>
                                                 
+                                                @if(Auth::user()->id != $user->id)
+                                                    <a href="{{ route('messages.conversation', $user->id) }}" class="btn btn-sm btn-success">
+                                                        <i class="bi bi-chat-dots"></i> Mensagem
+                                                    </a>
+                                                @endif
+                                                
                                                 @if(Auth::user()->isAdmin())
                                                     <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#editModal{{ $user->id }}">
                                                         Editar

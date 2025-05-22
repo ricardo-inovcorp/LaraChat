@@ -55,8 +55,8 @@ class RoomController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'name' => 'required|string|max:20',
+            'description' => 'nullable|string|max:30',
             'is_private' => 'boolean',
             'members' => 'nullable|array',
             'members.*' => 'exists:users,id'
@@ -113,8 +113,9 @@ class RoomController extends Controller
         $user = Auth::user();
         $isMember = $user->rooms()->where('room_id', $room->id)->exists();
         
-        if (!$isMember && $room->is_private) {
-            return redirect()->route('rooms.index')->with('error', 'You do not have access to this room.');
+        // For non-admin users, prevent access if not a member (both private and public rooms)
+        if (!$isMember && !$user->isAdmin()) {
+            return redirect()->route('rooms.index')->with('error', 'Você não tem acesso a esta sala. Solicite acesso ao proprietário.');
         }
         
         // Mark notification as read if notification_id is provided
@@ -172,8 +173,8 @@ class RoomController extends Controller
         }
         
         $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
+            'name' => 'required|string|max:20',
+            'description' => 'nullable|string|max:30',
             'is_private' => 'boolean',
             'members' => 'nullable|array',
             'members.*' => 'exists:users,id'
@@ -245,33 +246,9 @@ class RoomController extends Controller
      */
     public function join(Room $room)
     {
-        // Check if room is private
-        if ($room->is_private) {
-            return redirect()->route('rooms.index')->with('error', 'You cannot join a private room without an invitation.');
-        }
-        
-        // Check if already a member
-        $user = Auth::user();
-        $isMember = $user->rooms()->where('room_id', $room->id)->exists();
-        
-        if ($isMember) {
-            return redirect()->route('rooms.show', $room);
-        }
-        
-        // Join the room
-        UserRoom::create([
-            'user_id' => Auth::id(),
-            'room_id' => $room->id,
-            'is_admin' => false
-        ]);
-        
-        // If there was a pending request, mark it as approved
-        RoomJoinRequest::where('user_id', Auth::id())
-            ->where('room_id', $room->id)
-            ->where('status', 'pending')
-            ->update(['status' => 'approved']);
-        
-        return redirect()->route('rooms.show', $room)->with('success', 'You have joined the room!');
+        // This method is deprecated as direct joining is no longer allowed
+        // All users must request access and be approved by room owners
+        return redirect()->route('rooms.index')->with('error', 'Acesso direto não é permitido. Por favor, solicite acesso ao proprietário da sala.');
     }
     
     /**
@@ -281,7 +258,7 @@ class RoomController extends Controller
     {
         // Check if room is private
         if ($room->is_private) {
-            return redirect()->route('rooms.index')->with('error', 'You cannot join a private room without an invitation.');
+            return redirect()->route('rooms.index')->with('error', 'Salas privadas requerem convite direto do proprietário.');
         }
         
         // Check if already a member
@@ -299,7 +276,7 @@ class RoomController extends Controller
             ->exists();
             
         if ($existingRequest) {
-            return redirect()->route('rooms.index')->with('info', 'Your request to join this room is already pending approval.');
+            return redirect()->route('rooms.index')->with('info', 'Sua solicitação de acesso está pendente de aprovação pelo proprietário da sala.');
         }
         
         // Create join request
@@ -309,7 +286,7 @@ class RoomController extends Controller
             'status' => 'pending'
         ]);
         
-        return redirect()->route('rooms.index')->with('success', 'Your request to join the room has been sent to the owner.');
+        return redirect()->route('rooms.index')->with('success', 'Sua solicitação de acesso foi enviada ao proprietário da sala e está aguardando aprovação.');
     }
     
     /**
