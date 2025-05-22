@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Crypt;
 
 class Message extends Model
 {
@@ -70,5 +71,31 @@ class Message extends Model
     public function scopeInRoom($query)
     {
         return $query->whereNotNull('room_id')->whereNull('receiver_id');
+    }
+    
+    /**
+     * Criptografa o conteúdo da mensagem antes de salvá-la no banco de dados.
+     */
+    public function setContentAttribute($value)
+    {
+        $this->attributes['content'] = Crypt::encrypt($value);
+    }
+    
+    /**
+     * Descriptografa o conteúdo da mensagem ao acessá-la.
+     */
+    public function getContentAttribute($value)
+    {
+        if (!$value) {
+            return $value;
+        }
+        
+        try {
+            return Crypt::decrypt($value);
+        } catch (\Exception $e) {
+            // Se falhar a descriptografia, provavelmente não está criptografado
+            // Isso garante compatibilidade com mensagens antigas
+            return $value;
+        }
     }
 }
