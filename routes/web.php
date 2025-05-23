@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Auth;
@@ -46,6 +47,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/messages', [MessageController::class, 'store'])->name('messages.store');
     Route::post('/messages/{message}/read', [MessageController::class, 'markAsRead'])->name('messages.read');
     Route::delete('/messages/{message}', [MessageController::class, 'destroy'])->name('messages.destroy');
+    
+    // Rotas de Reações às Mensagens
+    // Rota para adicionar/remover reações (aceita GET e POST)
+    Route::match(['get', 'post'], '/messages/{message}/reactions', [MessageReactionController::class, 'toggle'])->name('messages.reactions.toggle');
+    
+    // Rota para obter reações - deve vir depois para evitar conflito com a rota match
+    Route::get('/messages/{message}/reactions/list', [MessageReactionController::class, 'getReactions'])->name('messages.reactions.get');
     
     // Rotas de Usuários
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
