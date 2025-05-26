@@ -90,25 +90,68 @@
                                     @if($notificationCount > 0)
                                         @foreach($unreadNotifications as $notification)
                                             <li>
-                                                <a class="dropdown-item notification-item" href="{{ route('rooms.show', $notification->data['room_id']) }}" 
-                                                   onclick="event.preventDefault(); 
-                                                           document.getElementById('mark-notification-{{ $notification->id }}').submit();">
-                                                    <div class="d-flex">
-                                                        <div class="flex-shrink-0">
-                                                            <i class="bi bi-envelope-paper text-primary"></i>
+                                                @if(isset($notification->data['room_id']) && !isset($notification->data['message_id']))
+                                                    <!-- Notificação de convite para sala -->
+                                                    <a class="dropdown-item notification-item" href="#" 
+                                                       onclick="event.preventDefault(); 
+                                                               document.getElementById('mark-notification-{{ $notification->id }}').submit();">
+                                                        <div class="d-flex">
+                                                            <div class="flex-shrink-0">
+                                                                <i class="bi bi-envelope-paper text-primary"></i>
+                                                            </div>
+                                                            <div class="ms-2">
+                                                                <p class="mb-0">{{ $notification->data['message'] }}</p>
+                                                                <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
+                                                            </div>
                                                         </div>
-                                                        <div class="ms-2">
-                                                            <p class="mb-0">{{ $notification->data['message'] }}</p>
-                                                            <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
+                                                    </a>
+                                                    <form id="mark-notification-{{ $notification->id }}" 
+                                                          action="{{ route('notifications.mark-read', $notification->id) }}" 
+                                                          method="POST" class="d-none">
+                                                        @csrf
+                                                    </form>
+                                                @elseif(isset($notification->data['message_id']))
+                                                    <!-- Notificação de reação a mensagem -->
+                                                    @php
+                                                        $routeName = isset($notification->data['is_room']) && $notification->data['is_room'] 
+                                                            ? 'rooms.show' 
+                                                            : 'messages.conversation';
+                                                        $routeParam = isset($notification->data['is_room']) && $notification->data['is_room']
+                                                            ? $notification->data['room_id']
+                                                            : $notification->data['conversation_user_id'];
+                                                    @endphp
+                                                    <a class="dropdown-item notification-item" href="#" 
+                                                       onclick="event.preventDefault(); 
+                                                               document.getElementById('mark-notification-{{ $notification->id }}').submit();">
+                                                        <div class="d-flex">
+                                                            <div class="flex-shrink-0">
+                                                                <i class="bi bi-emoji-smile text-warning"></i>
+                                                            </div>
+                                                            <div class="ms-2">
+                                                                <p class="mb-0">{{ $notification->data['message'] }}</p>
+                                                                <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
+                                                            </div>
+                                                        </div>
+                                                    </a>
+                                                    <form id="mark-notification-{{ $notification->id }}" 
+                                                          action="{{ route('notifications.mark-read', $notification->id) }}" 
+                                                          method="POST" class="d-none">
+                                                        @csrf
+                                                    </form>
+                                                @else
+                                                    <!-- Outras notificações -->
+                                                    <div class="dropdown-item notification-item">
+                                                        <div class="d-flex">
+                                                            <div class="flex-shrink-0">
+                                                                <i class="bi bi-info-circle text-info"></i>
+                                                            </div>
+                                                            <div class="ms-2">
+                                                                <p class="mb-0">{{ $notification->data['message'] ?? 'Notificação' }}</p>
+                                                                <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </a>
-                                                <form id="mark-notification-{{ $notification->id }}" 
-                                                      action="{{ route('rooms.show', $notification->data['room_id']) }}" 
-                                                      method="GET" class="d-none">
-                                                    @csrf
-                                                    <input type="hidden" name="notification_id" value="{{ $notification->id }}">
-                                                </form>
+                                                @endif
                                             </li>
                                         @endforeach
                                         <li><hr class="dropdown-divider"></li>

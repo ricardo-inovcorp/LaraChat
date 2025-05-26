@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Message;
 use App\Models\MessageReaction;
+use App\Models\User;
+use App\Notifications\MessageReaction as MessageReactionNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -73,6 +75,9 @@ class MessageReactionController extends Controller
                 ->where('emoji', $emoji)
                 ->first();
             
+            // Inicializar a variável de ação
+            $action = '';
+            
             if ($existingReaction) {
                 // Se a reação já existe, remova-a (toggle off)
                 $existingReaction->delete();
@@ -87,6 +92,18 @@ class MessageReactionController extends Controller
                 ]);
                 $action = 'added';
                 Log::info('Reaction added', ['reaction_id' => $reaction->id]);
+                
+                // Enviar notificação para o autor da mensagem
+                $messageAuthor = User::find($message->user_id);
+                if ($messageAuthor) {
+                    $messageAuthor->notify(new MessageReactionNotification($message, $user, $emoji));
+                    Log::info('Notification sent', [
+                        'to_user_id' => $messageAuthor->id,
+                        'from_user_id' => $user->id,
+                        'message_id' => $message->id,
+                        'emoji' => $emoji
+                    ]);
+                }
             }
             
             // Obter todas as reações atualizadas para esta mensagem
