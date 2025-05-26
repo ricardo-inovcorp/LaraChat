@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
 
 <div class="row mb-4">
     <div class="col-md-8">
-        <h1>Conversa com {{ $user->name }}</h1>
+        <h2>Conversa com {{ $user->name }}</h2>
     </div>
     <div class="col-md-4 text-md-end">
         <a href="{{ route('messages.index') }}" class="btn btn-secondary">Voltar para Mensagens</a>
