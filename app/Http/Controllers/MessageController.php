@@ -120,11 +120,27 @@ class MessageController extends Controller
                 $options
             );
             
+            // Garantir que temos a URL completa do avatar se ele existir
+            $avatarUrl = null;
+            if ($user->avatar) {
+                $avatarUrl = filter_var($user->avatar, FILTER_VALIDATE_URL) 
+                    ? $user->avatar 
+                    : asset('storage/' . $user->avatar);
+                
+                Log::debug('Avatar URL para envio:', [
+                    'original' => $user->avatar,
+                    'processado' => $avatarUrl
+                ]);
+            } else {
+                Log::debug('Usuário não possui avatar');
+            }
+            
             $data = [
                 'message' => $message->content,
                 'user' => [
                     'id' => $user->id,
                     'name' => $user->name,
+                    'avatar' => $avatarUrl,
                 ],
                 'created_at' => $message->created_at,
                 'message_id' => $message->id
@@ -138,7 +154,12 @@ class MessageController extends Controller
                 Log::debug('Enviando mensagem de sala via Pusher', [
                     'channel' => $channel,
                     'event' => $event,
-                    'data' => $data
+                    'data' => $data,
+                    'avatar_info' => [
+                        'user_has_avatar' => !is_null($user->avatar),
+                        'avatar_url' => $avatarUrl,
+                        'user_id' => $user->id
+                    ]
                 ]);
                 
                 // Trigger para mensagens de sala
@@ -159,7 +180,12 @@ class MessageController extends Controller
                     'senderChannel' => $senderChannel,
                     'receiverChannel' => $receiverChannel,
                     'event' => $event,
-                    'data' => $data
+                    'data' => $data,
+                    'avatar_info' => [
+                        'user_has_avatar' => !is_null($user->avatar),
+                        'avatar_url' => $avatarUrl,
+                        'user_id' => $user->id
+                    ]
                 ]);
                 
                 // Disparar evento em ambos os canais

@@ -4,6 +4,9 @@
 <!-- Meta tag para CSRF token -->
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
+<!-- CSS personalizado para o chat -->
+<link rel="stylesheet" href="{{ asset('css/chat.css') }}">
+
 <div class="row mb-4">
     <div class="col-md-8">
         <h2>{{ $room->name }}</h2>
@@ -57,41 +60,55 @@
                     @if(count($messages) > 0)
                         @foreach($messages as $message)
                             <div class="message-wrapper mb-3 {{ $message->user_id == Auth::id() ? 'text-end' : '' }}">
-                                <div class="message" data-message-id="{{ $message->id }}">
-                                    <div class="message-header">
-                                        <strong>{{ $message->user->name }}</strong>
-                                        <small class="text-muted">{{ $message->created_at->format('d/m/Y H:i') }}</small>
-                                    </div>
-                                    <div class="message-content p-2 {{ $message->user_id == Auth::id() ? 'bg-primary text-white' : 'bg-light' }}" style="border-radius: 10px; display: inline-block; max-width: 80%;">
-                                        {{ $message->content }}
+                                <div class="message d-flex {{ $message->user_id == Auth::id() ? 'flex-row-reverse' : 'flex-row' }}" data-message-id="{{ $message->id }}">
+                                    <!-- Avatar do usuário -->
+                                    <div class="message-avatar {{ $message->user_id == Auth::id() ? 'ms-2' : 'me-2' }}">
+                                        @if($message->user->avatar)
+                                            <img src="{{ $message->user->avatar }}" alt="{{ $message->user->name }}" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;">
+                                        @else
+                                            <div class="avatar-initials bg-{{ $message->user_id == Auth::id() ? 'primary' : 'secondary' }} text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                                {{ substr($message->user->name, 0, 1) }}
+                                            </div>
+                                        @endif
                                     </div>
                                     
-                                    <!-- Reação à mensagem -->
-                                    <div class="message-reactions mt-1 {{ $message->user_id == Auth::id() ? 'justify-content-end' : '' }}">
-                                        <div class="d-flex reaction-container flex-wrap" data-message-id="{{ $message->id }}">
-                                            <!-- As reações existentes serão carregadas via JavaScript -->
+                                    <!-- Conteúdo da mensagem -->
+                                    <div class="message-content-wrapper">
+                                        <div class="message-header">
+                                            <strong>{{ $message->user->name }}</strong>
+                                            <small class="text-muted">{{ $message->created_at->format('d/m/Y H:i') }}</small>
+                                        </div>
+                                        <div class="message-content p-2 {{ $message->user_id == Auth::id() ? 'bg-primary text-white' : 'bg-light' }}" style="border-radius: 10px; display: inline-block; max-width: 80%;">
+                                            {{ $message->content }}
                                         </div>
                                         
-                                        <!-- Só mostrar opções de reação para mensagens de outros usuários -->
-                                        @if($message->user_id != Auth::id())
-                                        <div class="emoji-controls mt-1">
-                                            <!-- Botão ADD -->
-                                            <button type="button" class="btn btn-sm btn-outline-secondary add-reaction-btn" data-message-id="{{ $message->id }}">
-                                                <i class="bi bi-emoji-smile"></i> Add
-                                            </button>
-                                            
-                                            <!-- Emoji options (inicialmente escondido) -->
-                                            <div class="emoji-options d-none" data-message-id="{{ $message->id }}">
-                                                @foreach(['👍', '👎', '❤️', '😂', '😮', '😢', '🎉', '🔥'] as $emoji)
-                                                    <form method="POST" action="{{ route('messages.reactions.toggle', $message->id) }}" class="d-inline emoji-form">
-                                                        @csrf
-                                                        <input type="hidden" name="emoji" value="{{ $emoji }}">
-                                                        <button type="submit" class="emoji-btn">{{ $emoji }}</button>
-                                                    </form>
-                                                @endforeach
+                                        <!-- Reação à mensagem -->
+                                        <div class="message-reactions mt-1 {{ $message->user_id == Auth::id() ? 'justify-content-end' : '' }}">
+                                            <div class="d-flex reaction-container flex-wrap" data-message-id="{{ $message->id }}">
+                                                <!-- As reações existentes serão carregadas via JavaScript -->
                                             </div>
+                                            
+                                            <!-- Só mostrar opções de reação para mensagens de outros usuários -->
+                                            @if($message->user_id != Auth::id())
+                                            <div class="emoji-controls mt-1">
+                                                <!-- Botão ADD -->
+                                                <button type="button" class="btn btn-sm btn-outline-secondary add-reaction-btn" data-message-id="{{ $message->id }}">
+                                                    <i class="bi bi-emoji-smile"></i> Add
+                                                </button>
+                                                
+                                                <!-- Emoji options (inicialmente escondido) -->
+                                                <div class="emoji-options d-none" data-message-id="{{ $message->id }}">
+                                                    @foreach(['👍', '👎', '❤️', '😂', '😮', '😢', '🎉', '🔥'] as $emoji)
+                                                        <form method="POST" action="{{ route('messages.reactions.toggle', $message->id) }}" class="d-inline emoji-form">
+                                                            @csrf
+                                                            <input type="hidden" name="emoji" value="{{ $emoji }}">
+                                                            <button type="submit" class="emoji-btn">{{ $emoji }}</button>
+                                                        </form>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                            @endif
                                         </div>
-                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -117,16 +134,28 @@
     <div class="col-md-3">
         <div class="card">
             <div class="card-header">Membros ({{ count($members) }})</div>
-            <div class="card-body">
-                <ul class="list-group">
+            <div class="card-body p-2">
+                <ul class="list-group members-list">
                     @foreach($members as $member)
-                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                            {{ $member->name }}
-                            @if($member->id == $room->created_by)
-                                <span class="badge bg-primary">Owner</span>
-                            @elseif($member->pivot->is_admin)
-                                <span class="badge bg-primary">Admin</span>
-                            @endif
+                        <li class="list-group-item d-flex align-items-center">
+                            <div class="member-status {{ $member->isOnline() ? 'online' : 'offline' }}"></div>
+                            
+                            <div class="member-avatar">
+                                @if($member->avatar)
+                                    <img src="{{ $member->avatar }}" alt="{{ $member->name }}">
+                                @else
+                                    <div class="member-avatar-initials">{{ substr($member->name, 0, 1) }}</div>
+                                @endif
+                            </div>
+                            
+                            <div class="d-flex justify-content-between align-items-center flex-grow-1">
+                                <span>{{ $member->name }}</span>
+                                @if($member->id == $room->created_by)
+                                    <span class="badge bg-primary">Owner</span>
+                                @elseif($member->pivot->is_admin)
+                                    <span class="badge bg-primary">Admin</span>
+                                @endif
+                            </div>
                         </li>
                     @endforeach
                 </ul>
@@ -135,23 +164,41 @@
     </div>
 </div>
 
+<!-- Dados do usuário para JavaScript -->
+<script>
+    // Inicializa dados do usuário atual
+    window.currentUser = {
+        id: {{ Auth::id() }},
+        name: "{{ Auth::user()->name }}",
+        avatar: "{{ Auth::user()->avatar ? (filter_var(Auth::user()->avatar, FILTER_VALIDATE_URL) ? Auth::user()->avatar : asset('storage/' . Auth::user()->avatar)) : '' }}",
+        initial: "{{ substr(Auth::user()->name, 0, 1) }}"
+    };
+    
+    window.appData = {
+        roomId: {{ $room->id }},
+        pusherKey: "{{ env('PUSHER_APP_KEY') }}",
+        pusherCluster: "{{ env('PUSHER_APP_CLUSTER') }}",
+        csrf: "{{ csrf_token() }}"
+    };
+</script>
+
 <script src="https://js.pusher.com/8.4.0/pusher.min.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const chatMessages = document.querySelector('.chat-messages');
     chatMessages.scrollTop = chatMessages.scrollHeight;
     
-    const authId = "{{ Auth::id() }}";
-    const roomId = "{{ $room->id }}";
+    const authId = currentUser.id;
+    const roomId = appData.roomId;
     
     console.log('Chat room initialized, ID:', roomId);
     
     // Ativar logs do Pusher
     Pusher.logToConsole = true;
     
-    // Criar instância do Pusher (igual ao exemplo)
-    const pusher = new Pusher('{{ env("PUSHER_APP_KEY") }}', {
-        cluster: '{{ env("PUSHER_APP_CLUSTER") }}',
+    // Criar instância do Pusher
+    const pusher = new Pusher(appData.pusherKey, {
+        cluster: appData.pusherCluster,
         forceTLS: true
     });
     
@@ -174,10 +221,39 @@ document.addEventListener('DOMContentLoaded', function() {
         // Criar elemento para a mensagem
         const messageWrapper = document.createElement('div');
         messageWrapper.className = data.user.id == authId ? 'message-wrapper mb-3 text-end' : 'message-wrapper mb-3';
+        messageWrapper.classList.add('fade-in');
         
         const messageDiv = document.createElement('div');
-        messageDiv.className = 'message';
+        messageDiv.className = data.user.id == authId ? 'message d-flex flex-row-reverse' : 'message d-flex flex-row';
         messageDiv.setAttribute('data-message-id', data.message_id);
+        
+        // Avatar do usuário
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = data.user.id == authId ? 'message-avatar ms-2' : 'message-avatar me-2';
+        
+        if (data.user.avatar) {
+            console.log('Avatar URL recebida:', data.user.avatar);
+            const avatarImg = document.createElement('img');
+            avatarImg.src = data.user.avatar;
+            avatarImg.alt = data.user.name;
+            avatarImg.className = 'rounded-circle';
+            avatarImg.style.width = '40px';
+            avatarImg.style.height = '40px';
+            avatarImg.style.objectFit = 'cover';
+            avatarDiv.appendChild(avatarImg);
+        } else {
+            console.log('Avatar não encontrado, usando inicial');
+            const initialsDiv = document.createElement('div');
+            initialsDiv.className = `avatar-initials bg-${data.user.id == authId ? 'primary' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center`;
+            initialsDiv.style.width = '40px';
+            initialsDiv.style.height = '40px';
+            initialsDiv.textContent = data.user.name.charAt(0);
+            avatarDiv.appendChild(initialsDiv);
+        }
+        
+        // Conteúdo da mensagem
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'message-content-wrapper';
         
         const messageHeader = document.createElement('div');
         messageHeader.className = 'message-header';
@@ -251,9 +327,12 @@ document.addEventListener('DOMContentLoaded', function() {
             reactionsContainer.appendChild(emojiControls);
         }
         
-        messageDiv.appendChild(messageHeader);
-        messageDiv.appendChild(messageContent);
-        messageDiv.appendChild(reactionsContainer);
+        contentWrapper.appendChild(messageHeader);
+        contentWrapper.appendChild(messageContent);
+        contentWrapper.appendChild(reactionsContainer);
+        
+        messageDiv.appendChild(avatarDiv);
+        messageDiv.appendChild(contentWrapper);
         
         messageWrapper.appendChild(messageDiv);
         chatMessages.appendChild(messageWrapper);
@@ -453,13 +532,40 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const messageWrapper = document.createElement('div');
         messageWrapper.className = 'message-wrapper mb-3 text-end';
+        messageWrapper.classList.add('fade-in');
         
         const messageDiv = document.createElement('div');
-        messageDiv.className = 'message';
+        messageDiv.className = 'message d-flex flex-row-reverse';
+        
+        // Avatar do usuário atual
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = 'message-avatar ms-2';
+        
+        if (currentUser.avatar) {
+            const avatarImg = document.createElement('img');
+            avatarImg.src = currentUser.avatar;
+            avatarImg.alt = currentUser.name;
+            avatarImg.className = 'rounded-circle';
+            avatarImg.style.width = '40px';
+            avatarImg.style.height = '40px';
+            avatarImg.style.objectFit = 'cover';
+            avatarDiv.appendChild(avatarImg);
+        } else {
+            const initialsDiv = document.createElement('div');
+            initialsDiv.className = 'avatar-initials bg-primary text-white rounded-circle d-flex align-items-center justify-content-center';
+            initialsDiv.style.width = '40px';
+            initialsDiv.style.height = '40px';
+            initialsDiv.textContent = currentUser.initial;
+            avatarDiv.appendChild(initialsDiv);
+        }
+        
+        // Conteúdo da mensagem
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'message-content-wrapper';
         
         const messageHeader = document.createElement('div');
         messageHeader.className = 'message-header';
-        messageHeader.innerHTML = '<strong>{{ Auth::user()->name }}</strong> <small class="text-muted">' + new Date().toLocaleString() + '</small>';
+        messageHeader.innerHTML = '<strong>' + currentUser.name + '</strong> <small class="text-muted">' + new Date().toLocaleString() + '</small>';
         
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content p-2 bg-primary text-white';
@@ -468,8 +574,11 @@ document.addEventListener('DOMContentLoaded', function() {
         messageContent.style.maxWidth = '80%';
         messageContent.textContent = content;
         
-        messageDiv.appendChild(messageHeader);
-        messageDiv.appendChild(messageContent);
+        contentWrapper.appendChild(messageHeader);
+        contentWrapper.appendChild(messageContent);
+        
+        messageDiv.appendChild(avatarDiv);
+        messageDiv.appendChild(contentWrapper);
         
         messageWrapper.appendChild(messageDiv);
         chatMessages.appendChild(messageWrapper);
