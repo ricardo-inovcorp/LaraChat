@@ -272,19 +272,35 @@ class RoomController extends Controller
         // Check if request already exists
         $existingRequest = RoomJoinRequest::where('user_id', Auth::id())
             ->where('room_id', $room->id)
-            ->where('status', 'pending')
-            ->exists();
-            
+            ->first();
+
+        $roomOwner = User::find($room->created_by);
+        $requester = Auth::user();
+
         if ($existingRequest) {
-            return redirect()->route('rooms.index')->with('info', 'Sua solicitação de acesso está pendente de aprovação pelo proprietário da sala.');
+            if ($existingRequest->status === 'pending') {
+                return redirect()->route('rooms.index')->with('info', 'Sua solicitação de acesso está pendente de aprovação pelo proprietário da sala.');
+            } else {
+                // Atualiza o status para pending
+                $existingRequest->update(['status' => 'pending']);
+                // Notifica o dono da sala
+                if ($roomOwner) {
+                    $roomOwner->notify(new \App\Notifications\RoomJoinRequestNotification($room, $requester));
+                }
+                return redirect()->route('rooms.index')->with('success', 'Sua solicitação de acesso foi reenviada ao proprietário da sala.');
+            }
         }
-        
+
         // Create join request
         RoomJoinRequest::create([
             'user_id' => Auth::id(),
             'room_id' => $room->id,
             'status' => 'pending'
         ]);
+        // Notifica o dono da sala
+        if ($roomOwner) {
+            $roomOwner->notify(new \App\Notifications\RoomJoinRequestNotification($room, $requester));
+        }
         
         return redirect()->route('rooms.index')->with('success', 'Sua solicitação de acesso foi enviada ao proprietário da sala e está aguardando aprovação.');
     }

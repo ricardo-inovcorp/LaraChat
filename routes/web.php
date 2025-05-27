@@ -4,6 +4,8 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\RoomController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AccountInvitationController;
+use App\Http\Controllers\AccountController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -62,7 +64,20 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/profile', [UserController::class, 'updateProfile'])->name('profile.update');
     Route::put('/users/{user}/update-status', [UserController::class, 'updateUserStatus'])->name('users.update-status');
     
+    // Rotas de Contas
+    Route::get('/accounts', [AccountController::class, 'index'])->name('accounts.index');
+    Route::post('/accounts', [AccountController::class, 'store'])->name('accounts.store');
+    Route::get('/accounts/{account}/invitations', [AccountController::class, 'invitations'])->name('accounts.invitations');
+    
+    // Rotas de Convites
+    Route::get('/admin/invitations', [AccountInvitationController::class, 'index'])->name('admin.invitations');
+    Route::post('/admin/invitations', [AccountInvitationController::class, 'create'])->name('invitations.create');
+    Route::post('/invitations/{token}/accept', [AccountInvitationController::class, 'acceptWithLogin'])->name('invitations.accept-with-login');
+    Route::get('/admin/invitations/latest', [AccountInvitationController::class, 'latest'])->name('invitations.latest');
+    
     // Rotas de Notificações
     Route::post('/notifications/mark-all-read', [App\Http\Controllers\NotificationController::class, 'markAllAsRead'])->name('notifications.mark-all-read');
     Route::post('/notifications/{id}/read', [App\Http\Controllers\NotificationController::class, 'markAsRead'])->name('notifications.mark-read');
 });
+
+Route::get('/invitations/{token}', [AccountInvitationController::class, 'accept'])->name('invitations.accept');

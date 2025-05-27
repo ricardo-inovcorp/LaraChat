@@ -135,4 +135,14 @@ class User extends Authenticatable
         $lastActiveTime = Carbon::createFromTimestamp($lastActivity);
         return $lastActiveTime->isAfter(now()->subMinutes(5));
     }
+
+    /**
+     * Get all accounts the user is a member of.
+     */
+    public function accounts(): BelongsToMany
+    {
+        return $this->belongsToMany(Account::class)
+            ->withPivot('role')
+            ->withTimestamps();
+    }
 }

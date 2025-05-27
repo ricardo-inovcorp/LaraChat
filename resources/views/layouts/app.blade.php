@@ -48,6 +48,11 @@
                                 <li class="nav-item">
                                     <a class="nav-link" href="{{ route('users.index') }}">Utilizadores</a>
                                 </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('admin.invitations') }}">
+                                        Convites
+                                    </a>
+                                </li>
                             @endif
                         @endauth
                     </ul>
@@ -90,7 +95,27 @@
                                     @if($notificationCount > 0)
                                         @foreach($unreadNotifications as $notification)
                                             <li>
-                                                @if(isset($notification->data['room_id']) && !isset($notification->data['message_id']))
+                                                @if(isset($notification->data['room_id']) && isset($notification->data['requester_id']))
+                                                    <!-- Notificação de solicitação de acesso à sala -->
+                                                    <a class="dropdown-item notification-item" href="#"
+                                                       onclick="event.preventDefault(); 
+                                                               document.getElementById('mark-notification-{{ $notification->id }}').submit();">
+                                                        <div class="d-flex">
+                                                            <div class="flex-shrink-0">
+                                                                <i class="bi bi-person-plus text-info"></i>
+                                                            </div>
+                                                            <div class="ms-2">
+                                                                <p class="mb-0">{{ $notification->data['message'] }}</p>
+                                                                <small class="text-muted">{{ $notification->created_at->diffForHumans() }}</small>
+                                                            </div>
+                                                        </div>
+                                                    </a>
+                                                    <form id="mark-notification-{{ $notification->id }}" 
+                                                          action="{{ route('notifications.mark-read', $notification->id) }}" 
+                                                          method="POST" class="d-none">
+                                                        @csrf
+                                                    </form>
+                                                @elseif(isset($notification->data['room_id']) && !isset($notification->data['message_id']))
                                                     <!-- Notificação de convite para sala -->
                                                     <a class="dropdown-item notification-item" href="#" 
                                                        onclick="event.preventDefault(); 
@@ -274,5 +299,6 @@
             });
         });
     </script>
+    @stack('scripts')
 </body>
 </html>
