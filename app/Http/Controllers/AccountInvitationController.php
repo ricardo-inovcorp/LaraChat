@@ -53,7 +53,7 @@ class AccountInvitationController extends Controller
             return response()->json([
                 'invitation' => $invitation,
                 'invitation_url' => route('invitations.accept', $invitation->token),
-                'qr_code' => \QrCode::size(300)->generate(route('invitations.accept', $invitation->token))
+                'qr_code' => (string) \QrCode::size(300)->generate(route('invitations.accept', $invitation->token))
             ]);
         } catch (\Exception $e) {
             \Log::error('Erro ao criar convite: ' . $e->getMessage(), ['exception' => $e]);
@@ -113,7 +113,7 @@ class AccountInvitationController extends Controller
             return response()->json([
                 'invitation' => $invitation,
                 'invitation_url' => route('invitations.accept', $invitation->token),
-                'qr_code' => \QrCode::size(300)->generate(route('invitations.accept', $invitation->token))
+                'qr_code' => (string) \QrCode::size(300)->generate(route('invitations.accept', $invitation->token))
             ]);
         } else {
             return response()->json(null);

@@ -84,8 +84,12 @@ document.getElementById('refreshBtn').onclick = function() {
 };
 
 document.getElementById('showQrBtn').onclick = function() {
-    if (currentInvitation && currentInvitation.qr_code) {
+    if (currentInvitation && typeof currentInvitation.qr_code === 'string') {
         document.getElementById('qrCodeContainer').innerHTML = currentInvitation.qr_code;
+        document.getElementById('qrCodeContainer').style.display = 'block';
+    } else if (currentInvitation && currentInvitation.qr_code) {
+        // fallback: try to convert to string
+        document.getElementById('qrCodeContainer').innerHTML = String(currentInvitation.qr_code);
         document.getElementById('qrCodeContainer').style.display = 'block';
     } else {
         alert('Gere um convite primeiro!');
