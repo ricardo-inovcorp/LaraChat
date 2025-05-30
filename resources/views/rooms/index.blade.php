@@ -36,7 +36,7 @@ use Illuminate\Support\Facades\Auth;
                                 </div>
                                 <div>
                                     @if(in_array($room->id, $userRoomIds))
-                                        <a href="{{ route('rooms.show', $room) }}" class="btn btn-sm btn-outline-primary">Acessar</a>
+                                        <a href="{{ route('rooms.show', $room) }}" class="btn btn-sm btn-outline-primary">Aceder</a>
                                     @elseif(in_array($room->id, $pendingRequests))
                                         <span class="badge bg-warning">Solicitação Pendente</span>
                                     @else
@@ -83,7 +83,7 @@ use Illuminate\Support\Facades\Auth;
                                     </div>
                                 </div>
                                 <div>
-                                    <a href="{{ route('rooms.show', $room) }}" class="btn btn-sm btn-outline-primary">Acessar</a>
+                                    <a href="{{ route('rooms.show', $room) }}" class="btn btn-sm btn-outline-primary">Aceder</a>
                                     
                                     @if(Auth::user()->isAdmin() || $room->created_by == Auth::id())
                                         <form action="{{ route('rooms.destroy', $room) }}" method="POST" class="d-inline mt-1">

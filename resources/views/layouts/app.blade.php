@@ -136,7 +136,7 @@
                                                         @csrf
                                                     </form>
                                                 @elseif(isset($notification->data['message_id']))
-                                                    <!-- Notificação de reação a mensagem -->
+                                                    <!-- Notificação de reação a mensagem ou nova mensagem -->
                                                     @php
                                                         $routeName = isset($notification->data['is_room']) && $notification->data['is_room'] 
                                                             ? 'rooms.show' 
@@ -145,12 +145,19 @@
                                                             ? $notification->data['room_id']
                                                             : $notification->data['conversation_user_id'];
                                                     @endphp
-                                                    <a class="dropdown-item notification-item" href="#" 
+                                                    
+                                                    <a class="dropdown-item notification-item" href="{{ route($routeName, $routeParam) }}"
                                                        onclick="event.preventDefault(); 
                                                                document.getElementById('mark-notification-{{ $notification->id }}').submit();">
                                                         <div class="d-flex">
                                                             <div class="flex-shrink-0">
-                                                                <i class="bi bi-emoji-smile text-warning"></i>
+                                                                @if($notification->data['type'] === 'mention')
+                                                                    <i class="bi bi-at text-primary"></i>
+                                                                @elseif($notification->data['type'] === 'new_message')
+                                                                    <i class="bi bi-chat-dots text-success"></i>
+                                                                @else
+                                                                    <i class="bi bi-emoji-smile text-warning"></i>
+                                                                @endif
                                                             </div>
                                                             <div class="ms-2">
                                                                 <p class="mb-0">{{ $notification->data['message'] }}</p>

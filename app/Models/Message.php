@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Message extends Model
 {
@@ -23,6 +24,7 @@ class Message extends Model
         'room_id',
         'receiver_id',
         'is_read',
+        'mentions',
     ];
     
     /**
@@ -32,6 +34,7 @@ class Message extends Model
      */
     protected $casts = [
         'is_read' => 'boolean',
+        'mentions' => 'array',
     ];
     
     /**
@@ -64,6 +67,15 @@ class Message extends Model
     public function reactions(): HasMany
     {
         return $this->hasMany(MessageReaction::class);
+    }
+    
+    /**
+     * Get the users mentioned in this message.
+     */
+    public function mentionedUsers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'message_mentions', 'message_id', 'user_id')
+                    ->withTimestamps();
     }
     
     /**

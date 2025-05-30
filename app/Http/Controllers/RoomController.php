@@ -390,4 +390,27 @@ class RoomController extends Controller
         
         return redirect()->route('rooms.index')->with('success', 'You have left the room.');
     }
+
+    /**
+     * Get mentionable members for a room.
+     */
+    public function getMentionableMembers(Room $room)
+    {
+        $user = Auth::user();
+        
+        // Se a sala for privada, apenas membros podem ser mencionados
+        if ($room->is_private) {
+            $members = $room->members()
+                ->where('users.id', '!=', $user->id) // Excluir o próprio usuário
+                ->select('users.id', 'users.name')
+                ->get();
+        } else {
+            // Se for pública, qualquer usuário pode ser mencionado
+            $members = User::where('users.id', '!=', $user->id) // Excluir o próprio usuário
+                ->select('users.id', 'users.name')
+                ->get();
+        }
+        
+        return response()->json($members);
+    }
 }

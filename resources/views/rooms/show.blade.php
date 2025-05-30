@@ -21,7 +21,7 @@
         @if($isAdmin)
             <a href="{{ route('rooms.edit', $room) }}" class="btn btn-warning">Editar Sala</a>
             
-            @if($room->created_by == Auth::id())
+            @if($room->created_by == Auth::id() && !$room->is_private)
                 @php
                     $pendingCount = $room->joinRequests()->where('status', 'pending')->count();
                 @endphp
@@ -119,12 +119,15 @@
                 </div>
             </div>
             <div class="card-footer">
-                <form action="{{ route('messages.store') }}" method="POST">
+                <form action="{{ route('messages.store') }}" method="POST" class="position-relative">
                     @csrf
                     <input type="hidden" name="room_id" value="{{ $room->id }}">
                     <div class="input-group">
-                        <input type="text" name="content" class="form-control" placeholder="Digite sua mensagem..." required>
+                        <input type="text" name="content" id="messageInput" class="form-control" placeholder="Digite sua mensagem..." required>
                         <button type="submit" class="btn btn-primary">Enviar</button>
+                    </div>
+                    <div id="mentionSuggestions" class="mention-suggestions d-none">
+                        <ul class="list-group"></ul>
                     </div>
                 </form>
             </div>
@@ -152,8 +155,6 @@
                                 <span>{{ $member->name }}</span>
                                 @if($member->id == $room->created_by)
                                     <span class="badge bg-primary">Owner</span>
-                                @elseif($member->pivot->is_admin)
-                                    <span class="badge bg-primary">Admin</span>
                                 @endif
                             </div>
                         </li>
@@ -207,394 +208,217 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Subscribing to channel:', channelName);
     const channel = pusher.subscribe(channelName);
     
-    // Escutar por novos eventos de mensagem - usando bind() como no exemplo
+    // Função para processar menções no conteúdo da mensagem
+    function processMentions(content) {
+        return content.replace(/@(\w+)/g, '<span class="mention">@$1</span>');
+    }
+    
+    // Função para criar elemento de mensagem
+    function createMessageElement(data) {
+        const messageWrapper = document.createElement('div');
+        messageWrapper.className = `message-wrapper mb-3 ${data.user.id == authId ? 'text-end' : ''}`;
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message d-flex ${data.user.id == authId ? 'flex-row-reverse' : 'flex-row'}`;
+        messageDiv.dataset.messageId = data.message_id;
+        
+        // Avatar
+        const avatarDiv = document.createElement('div');
+        avatarDiv.className = `message-avatar ${data.user.id == authId ? 'ms-2' : 'me-2'}`;
+        avatarDiv.innerHTML = `<div class="avatar-initials bg-${data.user.id == authId ? 'primary' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">${data.user.name.charAt(0)}</div>`;
+        
+        // Conteúdo
+        const contentWrapper = document.createElement('div');
+        contentWrapper.className = 'message-content-wrapper';
+        
+        const header = document.createElement('div');
+        header.className = 'message-header';
+        header.innerHTML = `<strong>${data.user.name}</strong><small class="text-muted">${new Date(data.created_at).toLocaleString()}</small>`;
+        
+        const content = document.createElement('div');
+        content.className = `message-content p-2 ${data.user.id == authId ? 'bg-primary text-white' : 'bg-light'}`;
+        content.style.borderRadius = '10px';
+        content.style.display = 'inline-block';
+        content.style.maxWidth = '80%';
+        content.innerHTML = processMentions(data.message);
+        
+        contentWrapper.appendChild(header);
+        contentWrapper.appendChild(content);
+        
+        messageDiv.appendChild(avatarDiv);
+        messageDiv.appendChild(contentWrapper);
+        messageWrapper.appendChild(messageDiv);
+        
+        return messageWrapper;
+    }
+    
+    // Escutar por novos eventos de mensagem
     channel.bind('my-event', function(data) {
-        console.log('Received new message:', data);
+        console.log('Nova mensagem recebida:', data);
         
-        // Verificar se a mensagem já existe no DOM (para evitar duplicação)
-        const existingMessage = document.querySelector(`[data-message-id="${data.message_id}"]`);
-        if (existingMessage) {
-            console.log('Message already exists in DOM, skipping');
+        const messageElement = createMessageElement(data);
+        chatMessages.appendChild(messageElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Se o usuário atual foi mencionado, destacar a mensagem
+        if (data.mentions && data.mentions.includes(authId)) {
+            messageElement.classList.add('mentioned');
+            messageElement.style.backgroundColor = 'rgba(255, 193, 7, 0.1)';
+            messageElement.style.borderRadius = '5px';
+            messageElement.style.padding = '5px';
+        }
+    });
+    
+    // Estilizar menções
+    const style = document.createElement('style');
+    style.textContent = `
+        .mention {
+            color: #007bff;
+            font-weight: bold;
+        }
+        .mentioned {
+            animation: highlight 2s ease-out;
+        }
+        @keyframes highlight {
+            0% { background-color: rgba(255, 193, 7, 0.3); }
+            100% { background-color: transparent; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // Autocomplete de menções
+    const messageInput = document.getElementById('messageInput');
+    const mentionSuggestions = document.getElementById('mentionSuggestions');
+    const suggestionsList = mentionSuggestions.querySelector('ul');
+    let mentionableMembers = [];
+    let currentMentionStart = -1;
+    let selectedIndex = -1;
+    
+    // Carregar membros mencionáveis
+    fetch(`{{ route('rooms.mentionable-members', $room) }}`)
+        .then(response => response.json())
+        .then(members => {
+            mentionableMembers = members;
+        });
+    
+    // Função para filtrar membros baseado no texto digitado
+    function filterMembers(text) {
+        return mentionableMembers.filter(member => 
+            member.name.toLowerCase().includes(text.toLowerCase())
+        );
+    }
+    
+    // Função para mostrar sugestões
+    function showSuggestions(text) {
+        const filteredMembers = filterMembers(text);
+        
+        if (filteredMembers.length === 0) {
+            mentionSuggestions.classList.add('d-none');
             return;
         }
         
-        // Criar elemento para a mensagem
-        const messageWrapper = document.createElement('div');
-        messageWrapper.className = data.user.id == authId ? 'message-wrapper mb-3 text-end' : 'message-wrapper mb-3';
-        messageWrapper.classList.add('fade-in');
+        suggestionsList.innerHTML = '';
+        filteredMembers.forEach((member, index) => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.textContent = `@${member.name}`;
+            li.dataset.index = index;
+            suggestionsList.appendChild(li);
+        });
         
-        const messageDiv = document.createElement('div');
-        messageDiv.className = data.user.id == authId ? 'message d-flex flex-row-reverse' : 'message d-flex flex-row';
-        messageDiv.setAttribute('data-message-id', data.message_id);
+        mentionSuggestions.classList.remove('d-none');
         
-        // Avatar do usuário
-        const avatarDiv = document.createElement('div');
-        avatarDiv.className = data.user.id == authId ? 'message-avatar ms-2' : 'message-avatar me-2';
+        // Ajustar posição da lista de sugestões
+        const inputRect = messageInput.getBoundingClientRect();
+        const suggestionsRect = mentionSuggestions.getBoundingClientRect();
         
-        if (data.user.avatar) {
-            console.log('Avatar URL recebida:', data.user.avatar);
-            const avatarImg = document.createElement('img');
-            avatarImg.src = data.user.avatar;
-            avatarImg.alt = data.user.name;
-            avatarImg.className = 'rounded-circle';
-            avatarImg.style.width = '40px';
-            avatarImg.style.height = '40px';
-            avatarImg.style.objectFit = 'cover';
-            avatarDiv.appendChild(avatarImg);
+        // Se a lista estiver saindo da tela por baixo, mostrar acima do input
+        if (inputRect.bottom + suggestionsRect.height > window.innerHeight) {
+            mentionSuggestions.style.bottom = 'calc(100% + 5px)';
+            mentionSuggestions.style.top = 'auto';
         } else {
-            console.log('Avatar não encontrado, usando inicial');
-            const initialsDiv = document.createElement('div');
-            initialsDiv.className = `avatar-initials bg-${data.user.id == authId ? 'primary' : 'secondary'} text-white rounded-circle d-flex align-items-center justify-content-center`;
-            initialsDiv.style.width = '40px';
-            initialsDiv.style.height = '40px';
-            initialsDiv.textContent = data.user.name.charAt(0);
-            avatarDiv.appendChild(initialsDiv);
+            mentionSuggestions.style.top = 'calc(100% + 5px)';
+            mentionSuggestions.style.bottom = 'auto';
         }
         
-        // Conteúdo da mensagem
-        const contentWrapper = document.createElement('div');
-        contentWrapper.className = 'message-content-wrapper';
+        selectedIndex = -1;
+    }
+    
+    // Função para inserir menção
+    function insertMention(member) {
+        const beforeMention = messageInput.value.substring(0, currentMentionStart);
+        const afterMention = messageInput.value.substring(messageInput.selectionStart);
+        messageInput.value = `${beforeMention}@${member.name} ${afterMention}`;
+        mentionSuggestions.classList.add('d-none');
         
-        const messageHeader = document.createElement('div');
-        messageHeader.className = 'message-header';
-        messageHeader.innerHTML = '<strong>' + data.user.name + '</strong> <small class="text-muted">' + new Date().toLocaleString() + '</small>';
+        // Posicionar cursor após a menção
+        const newPosition = currentMentionStart + member.name.length + 2; // +2 para o @ e o espaço
+        messageInput.setSelectionRange(newPosition, newPosition);
+        messageInput.focus();
+    }
+    
+    // Evento de input para detectar digitação de @
+    messageInput.addEventListener('input', function(e) {
+        const text = this.value;
+        const lastAtIndex = text.lastIndexOf('@', this.selectionStart);
         
-        const messageContent = document.createElement('div');
-        messageContent.className = data.user.id == authId ? 'message-content p-2 bg-primary text-white' : 'message-content p-2 bg-light';
-        messageContent.style.borderRadius = '10px';
-        messageContent.style.display = 'inline-block';
-        messageContent.style.maxWidth = '80%';
-        messageContent.textContent = data.message;
-        
-        // Adicionar container para reações
-        const reactionsContainer = document.createElement('div');
-        reactionsContainer.className = data.user.id == authId ? 'message-reactions mt-1 justify-content-end' : 'message-reactions mt-1';
-        
-        const reactionList = document.createElement('div');
-        reactionList.className = 'd-flex reaction-container flex-wrap';
-        reactionList.setAttribute('data-message-id', data.message_id);
-        
-        reactionsContainer.appendChild(reactionList);
-        
-        // Só adicionar controles de emoji se não for mensagem do usuário atual
-        if (data.user.id != authId) {
-            const emojiControls = document.createElement('div');
-            emojiControls.className = 'emoji-controls mt-1';
-            
-            // Botão ADD
-            const addButton = document.createElement('button');
-            addButton.type = 'button';
-            addButton.className = 'btn btn-sm btn-outline-secondary add-reaction-btn';
-            addButton.setAttribute('data-message-id', data.message_id);
-            addButton.innerHTML = '<i class="bi bi-emoji-smile"></i> Add';
-            
-            // Opções de emoji (escondidas inicialmente)
-            const emojiOptions = document.createElement('div');
-            emojiOptions.className = 'emoji-options d-none';
-            emojiOptions.setAttribute('data-message-id', data.message_id);
-            
-            const emojis = ['👍', '👎', '❤️', '😂', '😮', '😢', '🎉', '🔥'];
-            
-            emojis.forEach(emoji => {
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = `{{ url('messages') }}/${data.message_id}/reactions`;
-                form.className = 'd-inline emoji-form';
-                
-                const csrfInput = document.createElement('input');
-                csrfInput.type = 'hidden';
-                csrfInput.name = '_token';
-                csrfInput.value = '{{ csrf_token() }}';
-                
-                const emojiInput = document.createElement('input');
-                emojiInput.type = 'hidden';
-                emojiInput.name = 'emoji';
-                emojiInput.value = emoji;
-                
-                const button = document.createElement('button');
-                button.type = 'submit';
-                button.className = 'emoji-btn';
-                button.textContent = emoji;
-                
-                form.appendChild(csrfInput);
-                form.appendChild(emojiInput);
-                form.appendChild(button);
-                emojiOptions.appendChild(form);
-            });
-            
-            emojiControls.appendChild(addButton);
-            emojiControls.appendChild(emojiOptions);
-            reactionsContainer.appendChild(emojiControls);
+        if (lastAtIndex !== -1) {
+            const textAfterAt = text.substring(lastAtIndex + 1, this.selectionStart);
+            if (!textAfterAt.includes(' ')) {
+                currentMentionStart = lastAtIndex;
+                showSuggestions(textAfterAt);
+                return;
+            }
         }
         
-        contentWrapper.appendChild(messageHeader);
-        contentWrapper.appendChild(messageContent);
-        contentWrapper.appendChild(reactionsContainer);
-        
-        messageDiv.appendChild(avatarDiv);
-        messageDiv.appendChild(contentWrapper);
-        
-        messageWrapper.appendChild(messageDiv);
-        chatMessages.appendChild(messageWrapper);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-        
-        // Carregar reações para a nova mensagem
-        loadReactions(data.message_id);
-        // Configurar os listeners de eventos para os novos elementos
-        setupEventListeners();
+        mentionSuggestions.classList.add('d-none');
     });
     
-    // Sistema de reações
+    // Evento de clique nas sugestões
+    suggestionsList.addEventListener('click', function(e) {
+        const li = e.target.closest('.list-group-item');
+        if (li) {
+            const index = parseInt(li.dataset.index);
+            insertMention(mentionableMembers[index]);
+        }
+    });
     
-    // Configurar event listeners
-    function setupEventListeners() {
-        // Botões "Add Reaction"
-        document.querySelectorAll('.add-reaction-btn').forEach(button => {
-            button.removeEventListener('click', toggleEmojiOptions);
-            button.addEventListener('click', toggleEmojiOptions);
-        });
+    // Navegação com teclado
+    messageInput.addEventListener('keydown', function(e) {
+        if (mentionSuggestions.classList.contains('d-none')) return;
         
-        // Formulários de emoji
-        document.querySelectorAll('.emoji-form').forEach(form => {
-            form.removeEventListener('submit', handleEmojiFormSubmit);
-            form.addEventListener('submit', handleEmojiFormSubmit);
-        });
-    }
-    
-    // Toggle das opções de emoji
-    function toggleEmojiOptions(event) {
-        event.preventDefault();
+        const items = suggestionsList.querySelectorAll('.list-group-item');
         
-        const messageId = this.getAttribute('data-message-id');
-        const emojiOptions = document.querySelector(`.emoji-options[data-message-id="${messageId}"]`);
-        
-        // Fechar todos os outros emoji options primeiro
-        document.querySelectorAll('.emoji-options').forEach(option => {
-            if (option !== emojiOptions) {
-                option.classList.add('d-none');
-            }
-        });
-        
-        // Toggle do atual
-        emojiOptions.classList.toggle('d-none');
-    }
-    
-    // Manipulador de formulário de emoji
-    function handleEmojiFormSubmit(event) {
-        event.preventDefault();
-        
-        const form = event.currentTarget;
-        const url = form.action;
-        const formData = new FormData(form);
-        
-        // Mostrar indicador de carregamento
-        const submitButton = form.querySelector('button[type="submit"]');
-        const originalText = submitButton.innerHTML;
-        submitButton.disabled = true;
-        submitButton.innerHTML = '...';
-        
-        fetch(url, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Restaurar botão
-            submitButton.disabled = false;
-            submitButton.innerHTML = originalText;
-            
-            if (data.success) {
-                const messageId = form.closest('.emoji-options').getAttribute('data-message-id');
-                displayReactions(messageId, data.reactions);
-                
-                // Fechar o emoji options após selecionar
-                form.closest('.emoji-options').classList.add('d-none');
-            } else if (data.message) {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            // Restaurar botão
-            submitButton.disabled = false;
-            submitButton.innerHTML = originalText;
-            
-            console.error('Error processing reaction:', error);
-            alert('Erro ao processar sua reação. Por favor, tente novamente.');
-        });
-    }
-    
-    // Carregar reações existentes para todas as mensagens
-    function loadAllReactions() {
-        document.querySelectorAll('.message').forEach(messageElement => {
-            const messageId = messageElement.getAttribute('data-message-id');
-            loadReactions(messageId);
-        });
-    }
-    
-    // Carregar reações para uma mensagem específica
-    function loadReactions(messageId) {
-        fetch(`{{ url('messages') }}/${messageId}/reactions/list`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    displayReactions(messageId, data.reactions);
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (selectedIndex >= 0) {
+                    insertMention(mentionableMembers[selectedIndex]);
                 }
-            })
-            .catch(error => console.error('Error fetching reactions:', error));
-    }
-    
-    // Exibir reações na interface
-    function displayReactions(messageId, reactions) {
-        const container = document.querySelector(`.reaction-container[data-message-id="${messageId}"]`);
-        if (!container) {
-            console.error(`Container para reações não encontrado: messageId=${messageId}`);
-            return;
+                break;
+            case 'Escape':
+                mentionSuggestions.classList.add('d-none');
+                break;
         }
         
-        container.innerHTML = '';
-        
-        console.log('Displaying reactions for message:', messageId, reactions);
-        
-        // Verificar se há reações para exibir
-        if (Object.keys(reactions).length === 0) {
-            console.log('Não há reações para esta mensagem ainda');
-            return;
-        }
-        
-        // Converter o objeto em array para facilitar a iteração
-        Object.entries(reactions).forEach(([emoji, data]) => {
-            console.log('Processando emoji:', emoji, 'dados:', data);
-            
-            const reactionButton = document.createElement('button');
-            reactionButton.className = 'btn btn-sm btn-light reaction-btn me-1 mb-1';
-            reactionButton.innerHTML = `${emoji} <span class="reaction-count">${data.count}</span>`;
-            reactionButton.setAttribute('data-emoji', emoji);
-            reactionButton.setAttribute('data-message-id', messageId);
-            
-            // Verificar se o usuário atual reagiu com este emoji
-            const userReacted = data.users.some(user => user.id == authId);
-            if (userReacted) {
-                reactionButton.classList.add('active', 'btn-primary');
-                reactionButton.classList.remove('btn-light');
-                
-                // Adicionar evento para remover a reação quando clicado
-                reactionButton.addEventListener('click', function() {
-                    removeReaction(messageId, emoji);
-                });
-            }
-            
-            // Adicionar tooltip com os nomes dos usuários que reagiram
-            const userNames = data.users.map(user => user.name).join(', ');
-            reactionButton.setAttribute('title', userNames);
-            
-            container.appendChild(reactionButton);
+        // Atualizar seleção visual
+        items.forEach((item, index) => {
+            item.classList.toggle('active', index === selectedIndex);
         });
-    }
-    
-    // Função para remover uma reação
-    function removeReaction(messageId, emoji) {
-        const formData = new FormData();
-        formData.append('_token', '{{ csrf_token() }}');
-        formData.append('emoji', emoji);
-        
-        fetch(`{{ url('messages') }}/${messageId}/reactions`, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                displayReactions(messageId, data.reactions);
-            } else if (data.message) {
-                alert(data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error removing reaction:', error);
-            alert('Erro ao remover sua reação. Por favor, tente novamente.');
-        });
-    }
-    
-    // Interceptar o envio do formulário para mostrar a mensagem imediatamente
-    const messageForm = document.querySelector('form[action*="messages"]');
-    messageForm.addEventListener('submit', function(e) {
-        const contentInput = this.querySelector('input[name="content"]');
-        if (!contentInput || !contentInput.value.trim()) return;
-        
-        // Mostrar mensagem imediata para feedback do usuário
-        const content = contentInput.value.trim();
-        
-        const messageWrapper = document.createElement('div');
-        messageWrapper.className = 'message-wrapper mb-3 text-end';
-        messageWrapper.classList.add('fade-in');
-        
-        const messageDiv = document.createElement('div');
-        messageDiv.className = 'message d-flex flex-row-reverse';
-        
-        // Avatar do usuário atual
-        const avatarDiv = document.createElement('div');
-        avatarDiv.className = 'message-avatar ms-2';
-        
-        if (currentUser.avatar) {
-            const avatarImg = document.createElement('img');
-            avatarImg.src = currentUser.avatar;
-            avatarImg.alt = currentUser.name;
-            avatarImg.className = 'rounded-circle';
-            avatarImg.style.width = '40px';
-            avatarImg.style.height = '40px';
-            avatarImg.style.objectFit = 'cover';
-            avatarDiv.appendChild(avatarImg);
-        } else {
-            const initialsDiv = document.createElement('div');
-            initialsDiv.className = 'avatar-initials bg-primary text-white rounded-circle d-flex align-items-center justify-content-center';
-            initialsDiv.style.width = '40px';
-            initialsDiv.style.height = '40px';
-            initialsDiv.textContent = currentUser.initial;
-            avatarDiv.appendChild(initialsDiv);
-        }
-        
-        // Conteúdo da mensagem
-        const contentWrapper = document.createElement('div');
-        contentWrapper.className = 'message-content-wrapper';
-        
-        const messageHeader = document.createElement('div');
-        messageHeader.className = 'message-header';
-        messageHeader.innerHTML = '<strong>' + currentUser.name + '</strong> <small class="text-muted">' + new Date().toLocaleString() + '</small>';
-        
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content p-2 bg-primary text-white';
-        messageContent.style.borderRadius = '10px';
-        messageContent.style.display = 'inline-block';
-        messageContent.style.maxWidth = '80%';
-        messageContent.textContent = content;
-        
-        contentWrapper.appendChild(messageHeader);
-        contentWrapper.appendChild(messageContent);
-        
-        messageDiv.appendChild(avatarDiv);
-        messageDiv.appendChild(contentWrapper);
-        
-        messageWrapper.appendChild(messageDiv);
-        chatMessages.appendChild(messageWrapper);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
     });
     
-    // Inicializar
-    loadAllReactions();
-    setupEventListeners();
-    
-    // Fechar emoji options ao clicar fora
-    document.addEventListener('click', function(event) {
-        if (!event.target.closest('.add-reaction-btn') && !event.target.closest('.emoji-options')) {
-            document.querySelectorAll('.emoji-options').forEach(option => {
-                option.classList.add('d-none');
-            });
+    // Fechar sugestões ao clicar fora
+    document.addEventListener('click', function(e) {
+        if (!messageInput.contains(e.target) && !mentionSuggestions.contains(e.target)) {
+            mentionSuggestions.classList.add('d-none');
         }
     });
 });
@@ -654,6 +478,39 @@ document.addEventListener('DOMContentLoaded', function() {
 }
 .emoji-form {
     display: inline-block;
+}
+.mention-suggestions {
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1050;
+}
+.mention-suggestions .list-group-item {
+    cursor: pointer;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-bottom: 1px solid #dee2e6;
+}
+.mention-suggestions .list-group-item:last-child {
+    border-bottom: none;
+}
+.mention-suggestions .list-group-item:hover {
+    background-color: #f8f9fa;
+}
+.mention-suggestions .list-group-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+.card-footer {
+    position: relative;
+    z-index: 1040;
 }
 </style>
 @endsection 

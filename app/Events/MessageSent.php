@@ -70,6 +70,14 @@ class MessageSent implements ShouldBroadcastNow
                 'name' => $this->user->name,
             ],
             'created_at' => $this->message->created_at,
+            'message_id' => $this->message->id,
+            'mentions' => $this->message->mentions,
+            'mentioned_users' => $this->message->mentionedUsers->map(function($user) {
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                ];
+            }),
         ];
     }
 }

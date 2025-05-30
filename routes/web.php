@@ -42,6 +42,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/rooms/{room}/join-requests', [RoomController::class, 'showJoinRequests'])->name('rooms.join-requests');
     Route::post('/join-requests/{request}/approve', [RoomController::class, 'approveJoinRequest'])->name('join-requests.approve');
     Route::post('/join-requests/{request}/reject', [RoomController::class, 'rejectJoinRequest'])->name('join-requests.reject');
+    Route::get('/rooms/{room}/mentionable-members', [RoomController::class, 'getMentionableMembers'])->name('rooms.mentionable-members');
     
     // Rotas de Mensagens
     Route::get('/messages', [MessageController::class, 'index'])->name('messages.index');

@@ -9,6 +9,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
+use App\Notifications\MentionNotification;
+use App\Notifications\NewMessageNotification;
 
 class MessageController extends Controller
 {
@@ -70,6 +73,38 @@ class MessageController extends Controller
     }
 
     /**
+     * Process mentions in message content.
+     */
+    private function processMentions(string $content, ?Room $room = null): array
+    {
+        $mentionedUserIds = [];
+        
+        // Encontrar todas as menções no formato @username
+        preg_match_all('/@(\w+)/', $content, $matches);
+        
+        if (!empty($matches[1])) {
+            $usernames = $matches[1];
+            
+            // Se estiver em uma sala, verificar apenas membros
+            if ($room) {
+                $query = $room->is_private 
+                    ? $room->members()->whereIn('users.name', $usernames)
+                    : User::whereIn('name', $usernames);
+            } else {
+                $query = User::whereIn('name', $usernames);
+            }
+            
+            // Excluir o próprio usuário das menções
+            $query->where('id', '!=', Auth::id());
+            
+            $mentionedUsers = $query->get();
+            $mentionedUserIds = $mentionedUsers->pluck('id')->toArray();
+        }
+        
+        return $mentionedUserIds;
+    }
+
+    /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
@@ -85,6 +120,7 @@ class MessageController extends Controller
             return back()->with('error', 'Invalid message destination');
         }
         
+        $room = null;
         // If it's a room message, check if user is a member
         if ($request->room_id) {
             $room = Room::findOrFail($request->room_id);
@@ -96,113 +132,52 @@ class MessageController extends Controller
             }
         }
         
+        // Process mentions
+        $mentionedUserIds = $this->processMentions($request->content, $room);
+        
         $message = Message::create([
             'user_id' => Auth::id(),
             'content' => $request->content,
             'room_id' => $request->room_id,
             'receiver_id' => $request->receiver_id,
             'is_read' => false,
+            'mentions' => $mentionedUserIds,
         ]);
+        
+        // Attach mentioned users to the message
+        if (!empty($mentionedUserIds)) {
+            $message->mentionedUsers()->attach($mentionedUserIds);
+            
+            // Send notifications to mentioned users
+            foreach ($mentionedUserIds as $userId) {
+                $mentionedUser = User::find($userId);
+                if ($mentionedUser) {
+                    $mentionedUser->notify(new MentionNotification($message));
+                }
+            }
+        }
         
         $user = Auth::user();
         
-        try {
-            // Configurar o Pusher
-            $options = [
-                'cluster' => env('PUSHER_APP_CLUSTER'),
-                'useTLS' => true
-            ];
-            
-            $pusher = new \Pusher\Pusher(
-                env('PUSHER_APP_KEY'),
-                env('PUSHER_APP_SECRET'),
-                env('PUSHER_APP_ID'),
-                $options
-            );
-            
-            // Garantir que temos a URL completa do avatar se ele existir
-            $avatarUrl = null;
-            if ($user->avatar) {
-                $avatarUrl = filter_var($user->avatar, FILTER_VALIDATE_URL) 
-                    ? $user->avatar 
-                    : asset('storage/' . $user->avatar);
-                
-                Log::debug('Avatar URL para envio:', [
-                    'original' => $user->avatar,
-                    'processado' => $avatarUrl
-                ]);
-            } else {
-                Log::debug('Usuário não possui avatar');
+        // Send notifications for new messages
+        if ($request->room_id) {
+            // Notify all room members except the sender
+            $roomMembers = $room->members()->where('users.id', '!=', Auth::id())->get();
+            foreach ($roomMembers as $member) {
+                $member->notify(new NewMessageNotification($message));
             }
-            
-            $data = [
-                'message' => $message->content,
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'avatar' => $avatarUrl,
-                ],
-                'created_at' => $message->created_at,
-                'message_id' => $message->id
-            ];
-            
-            if ($request->room_id) {
-                // Canal para mensagens de sala
-                $channel = 'chat-room.' . $request->room_id;
-                $event = 'my-event';
-                
-                Log::debug('Enviando mensagem de sala via Pusher', [
-                    'channel' => $channel,
-                    'event' => $event,
-                    'data' => $data,
-                    'avatar_info' => [
-                        'user_has_avatar' => !is_null($user->avatar),
-                        'avatar_url' => $avatarUrl,
-                        'user_id' => $user->id
-                    ]
-                ]);
-                
-                // Trigger para mensagens de sala
-                $pusher->trigger($channel, $event, $data);
-            } else {
-                // Canal para mensagens privadas
-                $receiverId = $request->receiver_id;
-                $senderId = $user->id;
-                
-                // Canal para quando este usuário é o remetente
-                $senderChannel = 'chat.' . $senderId . '.' . $receiverId;
-                // Canal para quando este usuário é o destinatário
-                $receiverChannel = 'chat.' . $receiverId . '.' . $senderId;
-                
-                $event = 'new-message';
-                
-                Log::debug('Enviando mensagem privada via Pusher', [
-                    'senderChannel' => $senderChannel,
-                    'receiverChannel' => $receiverChannel,
-                    'event' => $event,
-                    'data' => $data,
-                    'avatar_info' => [
-                        'user_has_avatar' => !is_null($user->avatar),
-                        'avatar_url' => $avatarUrl,
-                        'user_id' => $user->id
-                    ]
-                ]);
-                
-                // Disparar evento em ambos os canais
-                $pusher->trigger([$senderChannel, $receiverChannel], $event, $data);
+        } else {
+            // Notify the receiver of the direct message
+            $receiver = User::find($request->receiver_id);
+            if ($receiver) {
+                $receiver->notify(new NewMessageNotification($message));
             }
-            
-        } catch (\Exception $e) {
-            Log::error('Erro ao enviar mensagem via Pusher', [
-                'error' => $e->getMessage(),
-            ]);
         }
         
-        if ($request->room_id) {
-            return redirect()->route('rooms.show', $request->room_id);
-        } else {
-            return redirect()->route('messages.conversation', $request->receiver_id);
-        }
+        // Broadcast the message
+        broadcast(new MessageSent($message, $user))->toOthers();
+        
+        return back();
     }
 
     /**
